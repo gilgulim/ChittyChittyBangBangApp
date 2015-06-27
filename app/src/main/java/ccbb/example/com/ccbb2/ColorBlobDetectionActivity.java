@@ -1,6 +1,8 @@
 package ccbb.example.com.ccbb2;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Vector;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
@@ -10,6 +12,7 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -26,21 +29,41 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.View.OnTouchListener;
 import android.widget.CompoundButton;
+import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.ToggleButton;
 
 public class ColorBlobDetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
-    private static final String  TAG              = "OCVSample::Activity";
+    private static final String  TAG = "OCVSample::Activity";
 
-    private boolean              mIsColorSelected = false;
-    private Mat                  mRgba;
-    private Mat                  mHsv;
-    private Scalar               mBlobColorRgba;
-    private Scalar               mBlobColorHsv;
-    private ColorBlobDetector    mDetector;
-    private Mat                  mSpectrum;
-    private Size                 SPECTRUM_SIZE;
-    private Scalar               CONTOUR_COLOR;
-    private boolean              colorModelState = false;
+    private boolean             mIsColorSelected = false;
+    private Mat                 mRgba;
+    private Mat                 mHsv;
+    private Mat                 erodeElement;
+    private Mat                 dilateElement;
+    private Mat                 threshold;
+    private Mat                 hierarchy;
+    private Mat                 contoursMat;
+    List<MatOfPoint>            contoursList;
+    private Scalar              mBlobColorRgba;
+    private Scalar              mBlobColorHsv;
+    private Scalar              hsvMin;
+    private Scalar              hsvMax;
+    private ColorBlobDetector   mDetector;
+    private Mat                 mSpectrum;
+    private Size                SPECTRUM_SIZE;
+    private Scalar              CONTOUR_COLOR;
+    private boolean             isHSVState = false;
+    private boolean             isMorph = false;
+    private boolean             isTracked = false;
+
+    private static final int    SEEK_BAR_MAX_VALUE = 500;
+    private int                 hMin = 0;
+    private int                 hMax = 256;
+    private int                 sMin = 0;
+    private int                 sMax = 256;
+    private int                 vMin = 0;
+    private int                 vMax = 256;
 
     private CameraBridgeViewBase mOpenCvCameraView;
 
@@ -81,12 +104,147 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
         mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.color_blob_detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
 
+        initComponents();
+
+    }
+
+    private void initComponents() {
         ToggleButton colorModelToggleButton = (ToggleButton) findViewById(R.id.colorModel);
         colorModelToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                colorModelState = isChecked;
+                isHSVState = isChecked;
+            }
+        });
+
+        SeekBar hMinSeekBar = (SeekBar) findViewById(R.id.seekBarHMin);
+        hMinSeekBar.setMax(SEEK_BAR_MAX_VALUE);
+        hMinSeekBar.setProgress(hMin);
+        hMinSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                hMin = i;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        SeekBar hMaxSeekBar = (SeekBar) findViewById(R.id.seekBarHMax);
+        hMaxSeekBar.setMax(SEEK_BAR_MAX_VALUE);
+        hMaxSeekBar.setProgress(hMax);
+        hMaxSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                hMax = i;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        SeekBar sMinSeekBar = (SeekBar) findViewById(R.id.seekBarSMin);
+        sMinSeekBar.setMax(SEEK_BAR_MAX_VALUE);
+        sMinSeekBar.setProgress(sMin);
+        sMinSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                sMin = i;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        SeekBar sMaxSeekBar = (SeekBar) findViewById(R.id.seekBarSMax);
+        sMaxSeekBar.setMax(SEEK_BAR_MAX_VALUE);
+        sMaxSeekBar.setProgress(sMax);
+        sMaxSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                sMax = i;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        SeekBar vMinSeekBar = (SeekBar) findViewById(R.id.seekBarVMin);
+        vMinSeekBar.setMax(SEEK_BAR_MAX_VALUE);
+        vMinSeekBar.setProgress(vMin);
+        vMinSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                vMin = i;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        SeekBar vMaxSeekBar = (SeekBar) findViewById(R.id.seekBarVMax);
+        vMaxSeekBar.setMax(SEEK_BAR_MAX_VALUE);
+        vMaxSeekBar.setProgress(vMax);
+        vMaxSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                vMax = i;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        Switch switchMorph = (Switch) findViewById(R.id.switchMorph);
+        switchMorph.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isMorph = b;
+            }
+        });
+
+        Switch switchTracked = (Switch) findViewById(R.id.switchTrack);
+        switchTracked.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isTracked = b;
             }
         });
     }
@@ -120,6 +278,13 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
 
     public void onCameraViewStarted(int width, int height) {
         mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mHsv = new Mat();
+        threshold = new Mat();
+        erodeElement = new Mat();
+        dilateElement = new Mat();
+        contoursMat = new Mat();
+        hierarchy = new Mat();
+        contoursList = new ArrayList<MatOfPoint>();
         mDetector = new ColorBlobDetector();
         mSpectrum = new Mat();
         mBlobColorRgba = new Scalar(255);
@@ -199,28 +364,54 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
         }
 
 
-        //create structuring element that will be used to "dilate" and "erode" image.
-        //the element chosen here is a 3px by 3px rectangle
-        //Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
 
-        //dilate with larger element so make sure object is nicely visible
-        //Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
-
-        //Imgproc.erode(mRgba,mRgba,erodeElement);
-        //Imgproc.erode(mRgba, mRgba, erodeElement);
-
-
-        //Imgproc.dilate(mRgba, mRgba, dilateElement);
-        //Imgproc.dilate(mRgba, mRgba, dilateElement);
 
         // Convert input frame to HSV in order to displays it back to screen
-        if (colorModelState) {
-            mHsv = new Mat();
-                    Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
-            return mHsv;
+        if (isHSVState) {
+
+                filterHSVRange();
+                if (isMorph){
+                    morphOps();
+                    if (isTracked){
+                        trackFilteredObject();
+                    }
+                }
+            return threshold;
         }
         return mRgba;
     }
+
+    private void trackFilteredObject() {
+        threshold.copyTo(contoursMat);
+
+        Imgproc.findContours(contoursMat,contoursList , hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+    }
+
+    private void morphOps() {
+        //create structuring element that will be used to "dilate" and "erode" image.
+        //the element chosen here is a 3px by 3px rectangle
+        erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
+
+        //dilate with larger element so make sure object is nicely visible
+        dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
+
+        Imgproc.erode(threshold,threshold,erodeElement);
+        Imgproc.erode(threshold, threshold, erodeElement);
+
+
+        Imgproc.dilate(threshold, threshold, dilateElement);
+        Imgproc.dilate(threshold, threshold, dilateElement);
+    }
+
+
+    private void filterHSVRange() {
+        Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+        hsvMin = new Scalar(hMin,sMin,vMin);
+        hsvMax = new Scalar(hMax,sMax,vMax);
+        Core.inRange(mHsv,hsvMin,hsvMax,threshold);
+    }
+
+
 
     private Scalar converScalarHsv2Rgba(Scalar hsvColor) {
         Mat pointMatRgba = new Mat();
