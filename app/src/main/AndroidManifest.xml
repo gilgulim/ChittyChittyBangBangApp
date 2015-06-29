@@ -11,10 +11,17 @@
         android:resizeable="true"
         android:smallScreens="true" />
 
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="18" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="18" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="18" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="18" />
+
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -28,17 +35,20 @@
         android:name="android.hardware.camera.front.autofocus"
         android:required="false" />
 
-
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
-        <activity android:name="ColorBlobDetectionActivity"
+        <activity
+            android:name=".ColorBlobDetectionActivity"
+            android:configChanges="keyboardHidden|orientation"
             android:label="@string/app_name"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboardHidden|orientation">
+            android:screenOrientation="landscape" >
+        </activity>
+        <activity
+            android:name=".BTActivity"
+            android:label="@string/title_activity_bt" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
