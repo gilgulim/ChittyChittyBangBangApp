@@ -1,2 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<merger version="3"><dataSet config="main"><source path="C:\Users\gilp\Documents\GitHub\CCBB\CCBB2\libraries\opencv\src\main\assets"/></dataSet><dataSet config="debug"><source path="C:\Users\gilp\Documents\GitHub\CCBB\CCBB2\libraries\opencv\src\debug\assets"/></dataSet></merger>
+<merger version="3"><dataSet config="main"><source path="C:\Code\FinalProjectApp\libraries\opencv\src\main\assets"/></dataSet><dataSet config="debug"><source path="C:\Code\FinalProjectApp\libraries\opencv\src\debug\assets"/></dataSet></merger>

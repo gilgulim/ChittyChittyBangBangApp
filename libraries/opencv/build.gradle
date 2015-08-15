@@ -1,5 +1,4 @@
 apply plugin: 'android-library'
-
 buildscript {
     repositories {
         mavenCentral()
@@ -8,10 +7,9 @@ buildscript {
         classpath 'com.android.tools.build:gradle:1.2.3'
     }
 }
-
 android {
-    compileSdkVersion 19
-    buildToolsVersion "19.1.0"
+    compileSdkVersion 22
+    buildToolsVersion '21.1.2'
 
     defaultConfig {
         minSdkVersion 8
@@ -29,4 +27,6 @@ android {
             aidl.srcDirs = ['src']
         }
     }
+}
+dependencies {
 }
