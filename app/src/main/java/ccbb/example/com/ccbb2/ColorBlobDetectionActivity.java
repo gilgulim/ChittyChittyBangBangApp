@@ -1,6 +1,7 @@
 package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Vector;
 
@@ -35,7 +36,7 @@ import android.widget.ToggleButton;
 
 public class ColorBlobDetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
     private static final String  TAG = "OCVSample::Activity";
-
+    private Mat                 mHierarchy;
     private boolean             mIsColorSelected = false;
     private Mat                 mRgba;
     private Mat                 mHsv;
@@ -44,7 +45,10 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
     private Mat                 threshold;
     private Mat                 hierarchy;
     private Mat                 contoursMat;
-    List<MatOfPoint>            contoursList;
+    List<MatOfPoint>            contoursList = new ArrayList<>();
+    List<MatOfPoint>            resultContoursList = new ArrayList<>();
+    private static final int    NUM_OF_FRAMES_TO_SKIP = 5;
+    private int                 skipFrameIndex=0;
     private Scalar              mBlobColorRgba;
     private Scalar              mBlobColorHsv;
     private Scalar              hsvMin;
@@ -84,6 +88,7 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
             }
         }
     };
+
 
     public ColorBlobDetectionActivity() {
         Log.i(TAG, "Instantiated new " + this.getClass());
@@ -280,6 +285,7 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
         mRgba = new Mat(height, width, CvType.CV_8UC4);
         mHsv = new Mat();
         threshold = new Mat();
+        mHierarchy = new Mat();
         erodeElement = new Mat();
         dilateElement = new Mat();
         contoursMat = new Mat();
@@ -368,14 +374,13 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
 
         // Convert input frame to HSV in order to displays it back to screen
         if (isHSVState) {
-
-                filterHSVRange();
-                if (isMorph){
-                    morphOps();
-                    if (isTracked){
-                        trackFilteredObject();
-                    }
+            filterHSVRange();
+            if (isMorph){
+                morphOps();
+                if (isTracked){
+                    trackFilteredObject();
                 }
+            }
             return threshold;
         }
         return mRgba;
@@ -384,7 +389,42 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
     private void trackFilteredObject() {
         threshold.copyTo(contoursMat);
 
-        Imgproc.findContours(contoursMat,contoursList , hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+/*
+        // Find max contour area
+        double maxArea = 0;
+        Iterator<MatOfPoint> each = contoursList.iterator();
+        while (each.hasNext()) {
+            MatOfPoint wrapper = each.next();
+            double area = Imgproc.contourArea(wrapper);
+            if (area > maxArea)
+                maxArea = area;
+        }
+
+        // Filter contours by area and resize to fit the original image size
+        resultContoursList.clear();
+        each = contoursList.iterator();
+        while (each.hasNext()) {
+            MatOfPoint contour = each.next();
+            if (Imgproc.contourArea(contour) > 0.1*maxArea) {
+                Core.multiply(contour, new Scalar(4,4), contour);
+                resultContoursList.add(contour);
+            }
+        }
+        */
+        Imgproc.drawContours(threshold, contoursList, -1, CONTOUR_COLOR);
+        if(skipFrameIndex > NUM_OF_FRAMES_TO_SKIP){
+           // contoursList.clear();
+        }else{
+            skipFrameIndex++;
+        }
+
+        /*mDetector.process(threshold);
+            contoursList = mDetector.getContours();
+            Log.e(TAG, "Contours count: " + contoursList.size());
+            Imgproc.drawContours(mRgba, contoursList, -1, CONTOUR_COLOR);
+*/
+
     }
 
     private void morphOps() {
