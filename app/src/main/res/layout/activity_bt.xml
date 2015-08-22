@@ -18,20 +18,9 @@
         android:layout_height="wrap_content"
         android:text="Led"
         android:id="@+id/switchLed"
-        android:layout_below="@+id/buttonConnect"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="73dp"
-        android:checked="false" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/textViewResult"
-        android:text="Text View"
-        android:layout_below="@+id/switchLed"
-        android:layout_alignRight="@+id/switchLed"
-        android:layout_alignEnd="@+id/switchLed"
-        android:layout_marginTop="29dp" />
+        android:checked="false"
+        android:layout_alignBottom="@+id/buttonConnect"
+        android:layout_toRightOf="@+id/Forward" />
 
     <Button
         android:layout_width="wrap_content"
@@ -39,7 +28,45 @@
         android:text="Go to Image Recognition"
         android:id="@+id/buttonIR"
         android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginBottom="65dp" />
+        android:layout_centerHorizontal="true" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Forward"
+        android:id="@+id/Forward"
+        android:layout_alignLeft="@+id/buttonConnect"
+        android:layout_alignStart="@+id/buttonConnect"
+        android:layout_marginTop="48dp"
+        android:layout_below="@+id/switchLed" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Backward"
+        android:id="@+id/Backward"
+        android:layout_below="@+id/Left"
+        android:layout_alignRight="@+id/buttonConnect"
+        android:layout_alignEnd="@+id/buttonConnect"
+        android:layout_marginTop="44dp" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Right"
+        android:id="@+id/Right"
+        android:layout_marginTop="26dp"
+        android:layout_below="@+id/Forward"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Left"
+        android:id="@+id/Left"
+        android:layout_alignTop="@+id/Right"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
 
 </RelativeLayout>

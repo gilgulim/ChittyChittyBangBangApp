@@ -25,9 +25,13 @@ public class BTActivity extends Activity implements View.OnClickListener{
 
     private Button              btnConnect;
     private Button              btnIRActivity;
+    private Button              btnForward;
+    private Button              btnBackward;
+    private Button              btnLeft;
+    private Button              btnRight;
+
     private Switch              schLed;
     private boolean             onOffLed = false;
-    private TextView            tvwResult;
 
     private static final String TAG = "BT comm:";
     private BluetoothDevice     btDevice;
@@ -63,6 +67,18 @@ public class BTActivity extends Activity implements View.OnClickListener{
         btnIRActivity = (Button) findViewById(R.id.buttonIR);
         btnIRActivity.setOnClickListener(this);
 
+        btnForward = (Button) findViewById(R.id.Forward);
+        btnForward.setOnClickListener(this);
+
+        btnBackward = (Button) findViewById(R.id.Backward);
+        btnBackward.setOnClickListener(this);
+
+        btnLeft = (Button) findViewById(R.id.Left);
+        btnLeft.setOnClickListener(this);
+
+        btnRight = (Button) findViewById(R.id.Right);
+        btnRight.setOnClickListener(this);
+
         schLed = (Switch) findViewById(R.id.switchLed);
         schLed.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -72,7 +88,6 @@ public class BTActivity extends Activity implements View.OnClickListener{
                 Toast.makeText(getApplicationContext(),onOffLed ? "LED ON" : "LED OFF",Toast.LENGTH_SHORT).show();
             }
         });
-        tvwResult = (TextView) findViewById(R.id.textViewResult);
     }
 
     private void initBTComponents() {
@@ -90,13 +105,25 @@ public class BTActivity extends Activity implements View.OnClickListener{
                 Intent intent = new Intent(BTActivity.this, ColorBlobDetectionActivity.class);
                 startActivity(intent);
                 break;
+            case R.id.Forward:
+                writeData("f");
+                break;
+            case R.id.Backward:
+                writeData("b");
+                break;
+            case R.id.Left:
+                writeData("l");
+                break;
+            case R.id.Right:
+                writeData("r");
+                break;
         }
     }
 
     private void writeData(String data) {
         try {
             outStream = btSocket.getOutputStream();
-        } catch (IOException e) {
+        } catch (Exception e) {
             Toast.makeText(getApplicationContext(),"Error in : outStream",Toast.LENGTH_SHORT).show();
         }
 
@@ -105,7 +132,7 @@ public class BTActivity extends Activity implements View.OnClickListener{
 
         try {
             outStream.write(msgBuffer);
-        } catch (IOException e) {
+        } catch (Exception e) {
             Toast.makeText(getApplicationContext(),"Error in : outStream.write",Toast.LENGTH_SHORT).show();
         }
     }
