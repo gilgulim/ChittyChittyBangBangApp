@@ -25,10 +25,12 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Go to Image Recognition"
+        android:text="Go to IR"
         android:id="@+id/buttonIR"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true" />
+        android:singleLine="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
 
     <Button
         android:layout_width="wrap_content"
@@ -37,7 +39,7 @@
         android:id="@+id/Forward"
         android:layout_alignLeft="@+id/buttonConnect"
         android:layout_alignStart="@+id/buttonConnect"
-        android:layout_marginTop="48dp"
+        android:layout_marginTop="100dp"
         android:layout_below="@+id/switchLed" />
 
     <Button

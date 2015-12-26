@@ -12,7 +12,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.Switch;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
@@ -102,7 +101,7 @@ public class BTActivity extends Activity implements View.OnClickListener{
                 connect();
                 break;
             case R.id.buttonIR:
-                Intent intent = new Intent(BTActivity.this, ColorBlobDetectionActivity.class);
+                Intent intent = new Intent(BTActivity.this, DetectionActivity.class);
                 startActivity(intent);
                 break;
             case R.id.Forward:

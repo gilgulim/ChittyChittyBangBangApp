@@ -3,18 +3,19 @@ package org.opencv.android;
 import java.util.List;
 
 import org.opencv.R;
-import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
-import org.opencv.videoio.Videoio;
 
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -90,8 +91,6 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     public void setCameraIndex(int cameraIndex) {
         this.mCameraIndex = cameraIndex;
     }
-
-
 
     public interface CvCameraViewListener {
         /**
@@ -391,6 +390,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     protected void deliverAndDrawFrame(CvCameraViewFrame frame) {
         Mat modified;
 
+
         if (mListener != null) {
             modified = mListener.onCameraFrame(frame);
         } else {
@@ -415,6 +415,10 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
                 canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
                 Log.d(TAG, "mStretch value: " + mScale);
 
+
+// rotate img 90 dgrees
+// canvas.drawBitmap(mCacheBitmap, rotateMe(canvas, mCacheBitmap), null);
+
                 if (mScale != 0) {
                     canvas.drawBitmap(mCacheBitmap, new Rect(0,0,mCacheBitmap.getWidth(), mCacheBitmap.getHeight()),
                          new Rect((int)((canvas.getWidth() - mScale*mCacheBitmap.getWidth()) / 2),
@@ -438,6 +442,18 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         }
     }
 
+
+    //todo added by Gil
+    private Matrix rotateMe(Canvas canvas, Bitmap bm) {
+        // TODO Auto-generated method stub
+        Matrix mtx=new Matrix();
+        float scale = (float) canvas.getWidth() / (float) bm.getHeight();
+        mtx.preTranslate((canvas.getWidth() - bm.getWidth())/2, (canvas.getHeight() - bm.getHeight())/2);
+        mtx.postRotate(90,canvas.getWidth()/2, canvas.getHeight()/2);
+        mtx.postScale(scale, scale, canvas.getWidth()/2 , canvas.getHeight()/2 );
+        return mtx;
+    }
+
     /**
      * This method is invoked shall perform concrete operation to initialize the camera.
      * CONTRACT: as a result of this method variables mFrameWidth and mFrameHeight MUST be
@@ -453,7 +469,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
      */
     protected abstract void disconnectCamera();
 
-    // NOTE: On Android 4.1.x the function must be called before SurfaceTextre constructor!
+    // NOTE: On Android 4.1.x the function must be called before SurfaceTexture constructor!
     protected void AllocateCache()
     {
         mCacheBitmap = Bitmap.createBitmap(mFrameWidth, mFrameHeight, Bitmap.Config.ARGB_8888);
@@ -476,6 +492,13 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     protected Size calculateCameraFrameSize(List<?> supportedSizes, ListItemAccessor accessor, int surfaceWidth, int surfaceHeight) {
         int calcWidth = 0;
         int calcHeight = 0;
+
+        //todo added by Gil
+        if(surfaceHeight > surfaceWidth){
+            int temp = surfaceHeight;
+            surfaceHeight = surfaceWidth;
+            surfaceWidth = temp;
+        }
 
         int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceWidth)? mMaxWidth : surfaceWidth;
         int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceHeight)? mMaxHeight : surfaceHeight;

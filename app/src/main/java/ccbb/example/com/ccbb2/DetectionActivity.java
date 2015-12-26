@@ -18,7 +18,6 @@ import org.opencv.core.Size;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.imgproc.Imgproc;
-import org.opencv.utils.Converters;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -33,33 +32,27 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.ToggleButton;
 
-public class ColorBlobDetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
+import ccbb.example.com.ccbb2.enums.ROIType;
+
+public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
     private static final String  TAG = "OCVSample::Activity";
     private Mat                 mHierarchy;
-    private boolean             mIsColorSelected = false;
     private Mat                 mRgba;
+    private Mat                 mGray;
     private Mat                 mHsv;
     private Mat                 erodeElement;
     private Mat                 dilateElement;
     private Mat                 threshold;
-    private List<Point>         centerMassContourPoints;
-    private Mat                 centerMassMath;
     private Mat                 contoursMat;
-    private List<MatOfPoint>            contoursList = new ArrayList<>();
-    private List<MatOfPoint>            resultContoursList = new ArrayList<>();
-    private static final int    NUM_OF_FRAMES_TO_SKIP = 1;
-    private int                 skipFrameIndex=0;
-    private Scalar              mBlobColorRgba;
-    private Scalar              mBlobColorHsv;
+    private List<MatOfPoint>    contoursList = new ArrayList<>();
+    private static final int    CONTOUR_SIZE_THRESHOLD = 85;
     private Scalar              hsvMin;
     private Scalar              hsvMax;
-    private ColorBlobDetector   mDetector;
-    private Mat                 mSpectrum;
-    private Size                SPECTRUM_SIZE;
     private Scalar              CONTOUR_COLOR;
     private boolean             isHSVState = false;
     private boolean             isMorph = false;
     private boolean             isTracked = false;
+    private static final boolean TRACK_LANE=true;
 
     private static final int    SEEK_BAR_MAX_VALUE = 256;
     private int                 hMin = 0;
@@ -77,9 +70,8 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
             switch (status) {
                 case LoaderCallbackInterface.SUCCESS:
                 {
-                    Log.i(TAG, "OpenCV loaded successfully");
                     mOpenCvCameraView.enableView();
-                    mOpenCvCameraView.setOnTouchListener(ColorBlobDetectionActivity.this);
+                    //mOpenCvCameraView.setOnTouchListener(DetectionActivity.this);
                 } break;
                 default:
                 {
@@ -89,21 +81,22 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
         }
     };
 
-    public ColorBlobDetectionActivity() {
+    public DetectionActivity() {
         Log.i(TAG, "Instantiated new " + this.getClass());
     }
 
-    /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        setContentView(R.layout.color_blob_detection_surface_view);
+        setContentView(R.layout.detection_surface_view);
 
-        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.color_blob_detection_activity_surface_view);
+        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
+        mOpenCvCameraView.enableFpsMeter();
+
         initComponents();
     }
 
@@ -277,28 +270,129 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
 
     public void onCameraViewStarted(int width, int height) {
         mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mGray = new Mat();
         mHsv = new Mat();
         threshold = new Mat();
         mHierarchy = new Mat();
         erodeElement = new Mat();
         dilateElement = new Mat();
+
         contoursMat = new Mat();
-        centerMassContourPoints = new ArrayList<>();
-        centerMassMath = new Mat();
         contoursList = new ArrayList<>();
-        mDetector = new ColorBlobDetector();
-        mSpectrum = new Mat();
-        mBlobColorRgba = new Scalar(255);
-        mBlobColorHsv = new Scalar(255);
-        SPECTRUM_SIZE = new Size(200, 64);
         CONTOUR_COLOR = new Scalar(255,0,0,255);
+
+        erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
+        dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
     }
 
     public void onCameraViewStopped() {
         mRgba.release();
     }
 
-    //not in use...
+    public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
+        if(!TRACK_LANE){
+            mRgba = inputFrame.rgba();
+
+            // Convert input frame to HSV in order to displays it back to screen
+            filterHSVRange();
+            if (isMorph){
+                morphOps();
+            }
+
+            if (isTracked){
+                trackFilteredObject();
+            }
+
+            if(isHSVState){
+                return threshold;
+            }else{
+                return mRgba;
+            }
+        }else{
+            mGray = inputFrame.gray();
+            getROI(ROIType.Lane);
+
+            return mGray;
+        }
+    }
+
+    private void getROI(ROIType roiType) {
+        if(roiType.name().equals(ROIType.Lane.name())){
+            
+        }
+    }
+
+    private void trackFilteredObject() {
+        threshold.copyTo(contoursMat);
+        contoursList.clear();
+        Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        if (!isHSVState){
+            findAndDrawCenterMassContour();
+        }
+        Imgproc.drawContours(mRgba, contoursList, -1, CONTOUR_COLOR);
+    }
+
+    private void findAndDrawCenterMassContour() {
+        for (MatOfPoint contourMOP : contoursList) {
+            if(contourMOP.toArray().length > CONTOUR_SIZE_THRESHOLD){
+                Point centerPoint = getCenterPoint(contourMOP.toArray());
+                Imgproc.drawMarker(mRgba,centerPoint,new Scalar(3));
+            }
+        }
+    }
+
+    private Point getCenterPoint(Point[] contourMOP) {
+        Point pMin = new Point();
+        Point pMax = new Point();
+        pMin.x = pMax.x = contourMOP[0].x;
+        pMin.y = pMax.y = contourMOP[0].y;
+
+        for (int i = 1; i < contourMOP.length; i++) {
+            if(contourMOP[i].x > pMax.x){
+                pMax.x = contourMOP[i].x;
+            }
+            if(contourMOP[i].y > pMax.y){
+                pMax.y = contourMOP[i].y;
+            }
+            if(contourMOP[i].x < pMin.x){
+                pMin.x = contourMOP[i].x;
+            }
+            if(contourMOP[i].y < pMin.y){
+                pMin.y = contourMOP[i].y;
+            }
+        }
+
+        Point p = new Point();
+        p.x = pMin.x + ((pMax.x - pMin.x) / 2);
+        p.y = pMin.y + ((pMax.y - pMin.y) / 2);
+        Log.i(TAG, "Center:" + p.toString() + ", Max:" + pMax.toString() + ", Min:" + pMin.toString());
+        return p;
+    }
+
+    private void morphOps() {
+        Imgproc.erode(threshold, threshold, erodeElement);
+        Imgproc.erode(threshold, threshold, erodeElement);
+        Imgproc.dilate(threshold, threshold, dilateElement);
+        Imgproc.dilate(threshold, threshold, dilateElement);
+    }
+
+    private void filterHSVRange() {
+        Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+        hsvMin = new Scalar(hMin,sMin,vMin);
+        hsvMax = new Scalar(hMax,sMax,vMax);
+        Core.inRange(mHsv,hsvMin,hsvMax,threshold);
+    }
+
+    @Override
+    public boolean onTouch(View view, MotionEvent motionEvent) {
+        return false;
+    }
+}
+
+//not in use...
+    /*
+
+
     public boolean onTouch(View v, MotionEvent event) {
         int cols = mRgba.cols();
         int rows = mRgba.rows();
@@ -337,142 +431,14 @@ public class ColorBlobDetectionActivity extends Activity implements OnTouchListe
         Log.i(TAG, "Touched rgba color: (" + mBlobColorRgba.val[0] + ", " + mBlobColorRgba.val[1] +
                 ", " + mBlobColorRgba.val[2] + ", " + mBlobColorRgba.val[3] + ")");
 
-        mDetector.setHsvColor(mBlobColorHsv);
+//        mDetector.setHsvColor(mBlobColorHsv);
 
-        Imgproc.resize(mDetector.getSpectrum(), mSpectrum, SPECTRUM_SIZE);
+//        Imgproc.resize(mDetector.getSpectrum(), mSpectrum, SPECTRUM_SIZE);
 
-        mIsColorSelected = true;
 
         touchedRegionRgba.release();
         touchedRegionHsv.release();
 
         return false; // don't need subsequent touch events
     }
-
-    public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-        mRgba = inputFrame.rgba();
-
-        //not in use...
-        if (mIsColorSelected) {
-            mDetector.process(mRgba);
-            List<MatOfPoint> contours = mDetector.getContours();
-            Log.e(TAG, "Contours count: " + contours.size());
-            Imgproc.drawContours(mRgba, contours, -1, CONTOUR_COLOR);
-
-            Mat colorLabel = mRgba.submat(4, 150, 4, 68);
-            colorLabel.setTo(mBlobColorRgba);
-
-            Mat spectrumLabel = mRgba.submat(4, 4 + mSpectrum.rows(), 70, 70 + mSpectrum.cols());
-            mSpectrum.copyTo(spectrumLabel);
-        }
-
-
-        // Convert input frame to HSV in order to displays it back to screen
-
-        filterHSVRange();
-        if (isMorph){
-            morphOps();
-        }
-
-
-        if (isTracked){
-            trackFilteredObject();
-        }
-
-        if(isHSVState){
-            return threshold;
-        }else{
-            return mRgba;
-        }
-    }
-
-    private void trackFilteredObject() {
-        threshold.copyTo(contoursMat);
-
-        Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        Imgproc.drawContours(mRgba, contoursList, -1, CONTOUR_COLOR);
-        if(skipFrameIndex > NUM_OF_FRAMES_TO_SKIP){
-            contoursList.clear();
-            skipFrameIndex = 0;
-        }else{
-            skipFrameIndex++;
-        }
-
-//        findAndDrawCenterMassContour();
-//        for (Point p : centerMassContourPoints) {
-//            centerMassMath = mRgba.submat((int) p.x - 1, (int) p.x + 1, (int) p.y - 1, (int) p.y + 1);
-//        }
-//        centerMassMath.setTo()
-    }
-
-    private void findAndDrawCenterMassContour() {
-        for (MatOfPoint contourMOP : contoursList) {
-            if(contourMOP.toArray().length <=2){
-                continue;
-            }
-            centerMassContourPoints.add(getCenterPoint(contourMOP.toArray()));
-        }
-
-
-    }
-
-    private Point getCenterPoint(Point[] contourMOP) {
-        Point pMin = new Point();
-        Point pMax = new Point();
-        pMin.x = pMax.x = contourMOP[0].x;
-        pMin.y = pMax.y = contourMOP[0].y;
-
-        for (int i = 1; i < contourMOP.length; i++) {
-            if(contourMOP[i].x > pMax.x){
-                pMax.x = contourMOP[i].x;
-            }
-            if(contourMOP[i].y > pMax.y){
-                pMax.y = contourMOP[i].y;
-            }
-            if(contourMOP[i].x < pMin.x){
-                pMin.x = contourMOP[i].x;
-            }
-            if(contourMOP[i].y < pMin.y){
-                pMin.y = contourMOP[i].y;
-            }
-        }
-
-        Point p = new Point();
-        p.x = pMin.x + ((pMax.x - pMin.x) / 2);
-        p.y = pMin.y + ((pMax.y - pMin.y) / 2);
-        Log.i(TAG, "Center:" + p.toString() + ", Max:" + pMax.toString() + ", Min:" + pMin.toString());
-        return p;
-    };
-
-    private void morphOps() {
-        //create structuring element that will be used to "dilate" and "erode" image.
-        //the element chosen here is a 3px by 3px rectangle
-        erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
-
-        //dilate with larger element so make sure object is nicely visible
-        dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
-
-        Imgproc.erode(threshold,threshold,erodeElement);
-        Imgproc.erode(threshold, threshold, erodeElement);
-
-
-        Imgproc.dilate(threshold, threshold, dilateElement);
-        Imgproc.dilate(threshold, threshold, dilateElement);
-    }
-
-    private void filterHSVRange() {
-        Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
-        hsvMin = new Scalar(hMin,sMin,vMin);
-        hsvMax = new Scalar(hMax,sMax,vMax);
-        Core.inRange(mHsv,hsvMin,hsvMax,threshold);
-    }
-
-    //not in use...
-    private Scalar converScalarHsv2Rgba(Scalar hsvColor) {
-        Mat pointMatRgba = new Mat();
-        Mat pointMatHsv = new Mat(1, 1, CvType.CV_8UC3, hsvColor);
-        Imgproc.cvtColor(pointMatHsv, pointMatRgba, Imgproc.COLOR_HSV2RGB_FULL, 4);
-
-        return new Scalar(pointMatRgba.get(0, 0));
-    }
-}
+ */
