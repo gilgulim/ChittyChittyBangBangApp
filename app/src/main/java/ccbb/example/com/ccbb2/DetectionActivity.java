@@ -2,7 +2,6 @@ package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
@@ -33,9 +32,6 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.ToggleButton;
 
-import ccbb.example.com.ccbb2.enums.Action;
-import ccbb.example.com.ccbb2.enums.ROIType;
-
 public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
     private static final String  TAG = "OCVSample::Activity";
     private Mat                 mHierarchy;
@@ -44,6 +40,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat                 mLaneThreshold;
     private Mat                 mHsv;
     private Mat                 erodeElement;
+    private Mat laneErodeElement;
     private Mat                 dilateElement;
     private Mat                 threshold;
     private Mat                 contoursMat;
@@ -57,7 +54,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private boolean             isRoi = false;
     private boolean             isTracked = false;
     private boolean             isLaneTrack=true;
-
+    private double              laneMean;
     private static final int    SEEK_BAR_MAX_VALUE = 256;
     private int                 hMin = 0;
     private int                 hMax = 256;
@@ -303,11 +300,13 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         threshold = new Mat(height, width, CvType.CV_8UC1);
         mHierarchy = new Mat();
         erodeElement = new Mat();
+        laneErodeElement = new Mat();
         dilateElement = new Mat();
         contoursMat = new Mat();
         contoursList = new ArrayList<>();
         CONTOUR_COLOR = new Scalar(255,0,0,255);
 
+        laneErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
         erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
         dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
     }
@@ -323,8 +322,12 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                 hsvMax = new Scalar(hMax,sMax,vMax);
                 mGray = inputFrame.gray().submat(laneRoi);
                 mGray.copyTo(mLaneThreshold.submat(laneRoi));
-                Core.inRange(mGray, hsvMin, hsvMax, mLaneThreshold.submat(laneRoi));
-                Imgproc.findContours();
+                Imgproc.adaptiveThreshold(mGray, mGray, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, -1.8);
+                Imgproc.erode(mGray, mGray, laneErodeElement);
+                laneMean = Core.mean(mGray).val[0];
+                Imgproc.Canny(mGray, mLaneThreshold.submat(laneRoi), laneMean*0.90, laneMean*1.33);
+                //Core.inRange(mGray, sLaneMin, sLaneMax, mLaneThreshold.submat(laneRoi));
+                //Imgproc.findContours();
                 return mLaneThreshold;
             }
             return inputFrame.gray();
