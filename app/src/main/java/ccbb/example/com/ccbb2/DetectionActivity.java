@@ -2,6 +2,7 @@ package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
@@ -32,6 +33,7 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.ToggleButton;
 
+import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.enums.ROIType;
 
 public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
@@ -39,6 +41,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat                 mHierarchy;
     private Mat                 mRgba;
     private Mat                 mGray;
+    private Mat                 mLaneThreshold;
     private Mat                 mHsv;
     private Mat                 erodeElement;
     private Mat                 dilateElement;
@@ -51,8 +54,9 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Scalar              CONTOUR_COLOR;
     private boolean             isHSVState = false;
     private boolean             isMorph = false;
+    private boolean             isRoi = false;
     private boolean             isTracked = false;
-    private static final boolean TRACK_LANE=true;
+    private boolean             isLaneTrack=true;
 
     private static final int    SEEK_BAR_MAX_VALUE = 256;
     private int                 hMin = 0;
@@ -61,7 +65,10 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private int                 sMax = 256;
     private int                 vMin = 0;
     private int                 vMax = 256;
+    private int                 screenWidth;
+    private int                 screenHeight;
 
+    private Rect                laneRoi;
     private CameraBridgeViewBase mOpenCvCameraView;
 
     private BaseLoaderCallback  mLoaderCallback = new BaseLoaderCallback(this) {
@@ -107,6 +114,15 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 isHSVState = isChecked;
+            }
+        });
+
+        ToggleButton objectTypeToggleButton = (ToggleButton) findViewById(R.id.objType);
+        objectTypeToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                isLaneTrack = isChecked;
             }
         });
 
@@ -239,6 +255,14 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                 isTracked = b;
             }
         });
+
+        Switch switchRoi = (Switch) findViewById(R.id.switchRoi);
+        switchRoi.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isRoi = b;
+            }
+        });
     }
 
     @Override
@@ -267,16 +291,19 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         if (mOpenCvCameraView != null)
             mOpenCvCameraView.disableView();
     }
-
+//todo move hsvMin/Max to the event trigger
     public void onCameraViewStarted(int width, int height) {
+        screenHeight = height;
+        screenWidth = width;
+        laneRoi = new Rect(0, height/2, width, height/2);
         mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mGray = new Mat();
         mHsv = new Mat();
-        threshold = new Mat();
+        threshold = new Mat(height, width, CvType.CV_8UC1);
         mHierarchy = new Mat();
         erodeElement = new Mat();
         dilateElement = new Mat();
-
         contoursMat = new Mat();
         contoursList = new ArrayList<>();
         CONTOUR_COLOR = new Scalar(255,0,0,255);
@@ -290,38 +317,58 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-        if(!TRACK_LANE){
+        if(isLaneTrack){
+            if (isRoi){
+                hsvMin = new Scalar(hMin,sMin,vMin);
+                hsvMax = new Scalar(hMax,sMax,vMax);
+                mGray = inputFrame.gray().submat(laneRoi);
+                mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                Core.inRange(mGray, hsvMin, hsvMax, mLaneThreshold.submat(laneRoi));
+                Imgproc.findContours();
+                return mLaneThreshold;
+            }
+            return inputFrame.gray();
+        }else {
             mRgba = inputFrame.rgba();
-
             // Convert input frame to HSV in order to displays it back to screen
             filterHSVRange();
-            if (isMorph){
+            if (isMorph) {
                 morphOps();
             }
 
-            if (isTracked){
+            if (isTracked) {
                 trackFilteredObject();
             }
 
-            if(isHSVState){
+            if (isHSVState) {
                 return threshold;
-            }else{
+            } else {
                 return mRgba;
             }
+        }
+    }
+
+    private Mat getROI(CvCameraViewFrame inputFrame) {
+//        printLog(threshold.get(5, 5), "before 1");
+//        printLog(threshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "before 2");
+        Rect roi = new Rect(0,(int) mGray.size().height / 2, (int) mGray.size().width,(int) mGray.size().height / 2);
+//        threshold = mGray.submat(roi);
+//        printLog(threshold.get(5, 5), "after copy 1");
+//        printLog(threshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "after copy 2");
+
+        return new Mat(inputFrame.gray(),roi);
+    }
+
+    private void printLog(double[] doubles, String m){
+        if(doubles != null){
+            for (double  d : doubles) {
+                Log.d(TAG, m + " : " + d);
+            }
         }else{
-            mGray = inputFrame.gray();
-            getROI(ROIType.Lane);
-
-            return mGray;
+            Log.d(TAG, m + " : null");
         }
-    }
 
-    private void getROI(ROIType roiType) {
-        if(roiType.name().equals(ROIType.Lane.name())){
-            
-        }
     }
-
     private void trackFilteredObject() {
         threshold.copyTo(contoursMat);
         contoursList.clear();
