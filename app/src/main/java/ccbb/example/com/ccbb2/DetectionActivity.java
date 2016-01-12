@@ -30,6 +30,7 @@ import android.view.View.OnTouchListener;
 import android.widget.CompoundButton;
 import android.widget.SeekBar;
 import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.ToggleButton;
 
 public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
@@ -42,18 +43,31 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat                 erodeElement;
     private Mat laneErodeElement;
     private Mat                 dilateElement;
-    private Mat                 threshold;
+    private Mat mSignThreshold;
     private Mat                 contoursMat;
     private List<MatOfPoint>    contoursList = new ArrayList<>();
     private static final int    CONTOUR_SIZE_THRESHOLD = 85;
     private Scalar              hsvMin;
     private Scalar              hsvMax;
     private Scalar              CONTOUR_COLOR;
-    private boolean             isHSVState = false;
-    private boolean             isMorph = false;
-    private boolean             isRoi = false;
+
+    //sign tracking
+    private boolean             isSignRoi = false;
+    private boolean             isSignHSV = false;
+    private boolean             isSignMRP = false;
     private boolean             isTracked = false;
-    private boolean             isLaneTrack=true;
+
+    //lane tracking
+    private boolean             isLaneTrack = true;
+    private boolean             isLaneRoi = false;
+    private boolean             isLaneThd = false;
+    private boolean             isLaneErd = false;
+    private boolean             isLaneCtr = false;
+    private boolean             isLaneHug = false;
+
+    private double              laneThdConst = -1;
+    private double              laneCtrMinConst = 0.66;
+    private double              laneCtrMaxConst = 1.33;
     private double              laneMean;
     private static final int    SEEK_BAR_MAX_VALUE = 256;
     private int                 hMin = 0;
@@ -66,24 +80,10 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private int                 screenHeight;
 
     private Rect                laneRoi;
-    private CameraBridgeViewBase mOpenCvCameraView;
+    private Rect                signRoi;
 
-    private BaseLoaderCallback  mLoaderCallback = new BaseLoaderCallback(this) {
-        @Override
-        public void onManagerConnected(int status) {
-            switch (status) {
-                case LoaderCallbackInterface.SUCCESS:
-                {
-                    mOpenCvCameraView.enableView();
-                    //mOpenCvCameraView.setOnTouchListener(DetectionActivity.this);
-                } break;
-                default:
-                {
-                    super.onManagerConnected(status);
-                } break;
-            }
-        }
-    };
+    private CameraBridgeViewBase mOpenCvCameraView;
+    private BaseLoaderCallback  mLoaderCallback;
 
     public DetectionActivity() {
         Log.i(TAG, "Instantiated new " + this.getClass());
@@ -101,16 +101,53 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mOpenCvCameraView.setCvCameraViewListener(this);
         mOpenCvCameraView.enableFpsMeter();
 
+        mLoaderCallback = new BaseLoaderCallback(this) {
+            @Override
+            public void onManagerConnected(int status) {
+                switch (status) {
+                    case LoaderCallbackInterface.SUCCESS:
+                    {
+                        mOpenCvCameraView.enableView();
+                        //mOpenCvCameraView.setOnTouchListener(DetectionActivity.this);
+                    } break;
+                    default:
+                    {
+                        super.onManagerConnected(status);
+                    } break;
+                }
+            }
+        };
+
         initComponents();
     }
 
     private void initComponents() {
+        final TextView textViewLaneThdValue = (TextView) findViewById(R.id.textViewLaneThd);
+        textViewLaneThdValue.setText(laneThdConst+"");
+        final TextView textViewLaneCtrMinValue = (TextView) findViewById(R.id.textViewLaneCtrMin);
+        textViewLaneCtrMinValue.setText(laneCtrMinConst+"");
+        final TextView textViewLaneCtrMaxValue = (TextView) findViewById(R.id.textViewLaneCtrMax);
+        textViewLaneCtrMaxValue.setText(laneCtrMaxConst+"");
+
+        final TextView textViewSignHMin = (TextView) findViewById(R.id.textViewHMin);
+        textViewSignHMin.setText("HMin "+ hMin);
+        final TextView textViewSignHMax = (TextView) findViewById(R.id.textViewHMax);
+        textViewSignHMax.setText("HMax "+ hMin);
+        final TextView textViewSignSMin = (TextView) findViewById(R.id.textViewSMin);
+        textViewSignSMin.setText("SMin "+ sMin);
+        final TextView textViewSignSMax = (TextView) findViewById(R.id.textViewSMax);
+        textViewSignSMax.setText("SMax "+ sMax);
+        final TextView textViewSignVMin = (TextView) findViewById(R.id.textViewVMin);
+        textViewSignVMin.setText("VMin "+ vMin);
+        final TextView textViewSignVMax = (TextView) findViewById(R.id.textViewVMax);
+        textViewSignVMax.setText("VMax "+ vMax);
+
         ToggleButton colorModelToggleButton = (ToggleButton) findViewById(R.id.colorModel);
         colorModelToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                isHSVState = isChecked;
+                isSignHSV = isChecked;
             }
         });
 
@@ -130,6 +167,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 hMin = i;
+                textViewSignHMin.setText(hMin+"");
             }
 
             @Override
@@ -149,6 +187,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 hMax = i;
+                textViewSignHMax.setText(hMax+"");
             }
 
             @Override
@@ -168,6 +207,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 sMin = i;
+                textViewSignSMin.setText(sMin+"");
             }
 
             @Override
@@ -187,6 +227,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 sMax = i;
+                textViewSignSMax.setText(sMax+"");
             }
 
             @Override
@@ -206,6 +247,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 vMin = i;
+                textViewSignVMin.setText(vMin+"");
             }
 
             @Override
@@ -225,6 +267,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 vMax = i;
+                textViewSignVMax.setText(vMax+"");
             }
 
             @Override
@@ -237,11 +280,78 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             }
         });
 
-        Switch switchMorph = (Switch) findViewById(R.id.switchMorph);
+        SeekBar laneThdSeekBar = (SeekBar) findViewById(R.id.seekBarThd);
+        laneThdSeekBar.setProgress((int)laneThdConst*(-25));
+        laneThdSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                laneThdConst = (double) i / -25.0;
+                vMax = i;
+                textViewLaneThdValue.setText(laneThdConst+"");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        final SeekBar laneCtrMinSeekBar = (SeekBar) findViewById(R.id.seekBarCtrMin);
+        laneCtrMinSeekBar.setProgress((int)laneCtrMinConst*50);
+        laneCtrMinSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                laneCtrMinConst = (double) i / 50.0;
+                textViewLaneCtrMinValue.setText(laneCtrMinConst+"");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        SeekBar laneCtrMaxSeekBar = (SeekBar) findViewById(R.id.seekBarCtrMax);
+        laneCtrMaxSeekBar.setProgress((int) laneCtrMaxConst * 50);
+        laneCtrMaxSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                laneCtrMaxConst = (double) i / 50.0;
+                textViewLaneCtrMaxValue.setText(laneCtrMaxConst + "");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+
+        Switch switchSignRoi = (Switch) findViewById(R.id.switchSignRoi);
+        switchSignRoi.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isSignRoi = b;
+            }
+        });
+
+        Switch switchMorph = (Switch) findViewById(R.id.switchLaneMorph);
         switchMorph.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
-                isMorph = b;
+                isSignMRP = b;
             }
         });
 
@@ -257,7 +367,39 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         switchRoi.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
-                isRoi = b;
+                isLaneRoi = b;
+            }
+        });
+
+        Switch switchThd = (Switch) findViewById(R.id.switchThd);
+        switchThd.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isLaneThd = b;
+            }
+        });
+
+        Switch switchErd = (Switch) findViewById(R.id.switchErd);
+        switchErd.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isLaneErd = b;
+            }
+        });
+
+        Switch switchCtr = (Switch) findViewById(R.id.switchCtr);
+        switchCtr.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isLaneCtr = b;
+            }
+        });
+
+        Switch switchHug = (Switch) findViewById(R.id.switchHug);
+        switchHug.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                isLaneHug = b;
             }
         });
     }
@@ -293,15 +435,14 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         screenHeight = height;
         screenWidth = width;
         laneRoi = new Rect(0, height/2, width, height/2);
+        signRoi = new Rect(width/2, 0, width/2, height);
         mRgba = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
+        mSignThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mGray = new Mat();
         mHsv = new Mat();
-        threshold = new Mat(height, width, CvType.CV_8UC1);
+
         mHierarchy = new Mat();
-        erodeElement = new Mat();
-        laneErodeElement = new Mat();
-        dilateElement = new Mat();
         contoursMat = new Mat();
         contoursList = new ArrayList<>();
         CONTOUR_COLOR = new Scalar(255,0,0,255);
@@ -317,47 +458,64 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
         if(isLaneTrack){
-            if (isRoi){
-                hsvMin = new Scalar(hMin,sMin,vMin);
-                hsvMax = new Scalar(hMax,sMax,vMax);
+            if (isLaneRoi){
                 mGray = inputFrame.gray().submat(laneRoi);
                 mGray.copyTo(mLaneThreshold.submat(laneRoi));
-                Imgproc.adaptiveThreshold(mGray, mGray, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, -1.8);
-                Imgproc.erode(mGray, mGray, laneErodeElement);
-                laneMean = Core.mean(mGray).val[0];
-                Imgproc.Canny(mGray, mLaneThreshold.submat(laneRoi), laneMean*0.90, laneMean*1.33);
-                //Core.inRange(mGray, sLaneMin, sLaneMax, mLaneThreshold.submat(laneRoi));
-                //Imgproc.findContours();
+                if(isLaneThd){
+                    Imgproc.adaptiveThreshold(mGray, mGray, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, laneThdConst);
+                    mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                    if(isLaneErd){
+                        Imgproc.erode(mGray, mGray, laneErodeElement);
+                        mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                        if(isLaneCtr){
+                            laneMean = Core.mean(mGray).val[0];
+                            Imgproc.Canny(mGray, mGray, laneMean * laneCtrMinConst, laneMean * laneCtrMaxConst);
+                            mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                            if(isLaneHug){
+                                //todo complete
+                                mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                            }
+                        }
+                    }
+                }
                 return mLaneThreshold;
             }
             return inputFrame.gray();
         }else {
-            mRgba = inputFrame.rgba();
-            // Convert input frame to HSV in order to displays it back to screen
-            filterHSVRange();
-            if (isMorph) {
-                morphOps();
+            if(isSignRoi){
+                mRgba = inputFrame.rgba().submat(laneRoi);;
+                mRgba.copyTo(mSignThreshold.submat(signRoi));
+                if(isSignHSV){
+                    Imgproc.cvtColor(mRgba, mRgba, Imgproc.COLOR_RGB2HSV_FULL);
+                    hsvMin = new Scalar(hMin,sMin,vMin);
+                    hsvMax = new Scalar(hMax,sMax,vMax);
+                    Core.inRange(mRgba, hsvMin, hsvMax, mRgba);
+                    mRgba.copyTo(mSignThreshold);
+                    if (isSignMRP) {
+                        Imgproc.erode(mRgba, mRgba, erodeElement);
+                        Imgproc.erode(mRgba, mRgba, erodeElement);
+                        Imgproc.dilate(mRgba, mRgba, dilateElement);
+                        Imgproc.dilate(mRgba, mRgba, dilateElement);
+                        mRgba.copyTo(mSignThreshold);
+                        if (isTracked) {
+                            //trackFilteredObject();
+                            Imgproc.findContours(mRgba, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+                        }
+                    }
+                }
+                return mSignThreshold;
             }
-
-            if (isTracked) {
-                trackFilteredObject();
-            }
-
-            if (isHSVState) {
-                return threshold;
-            } else {
-                return mRgba;
-            }
+            return inputFrame.rgba();
         }
     }
 
     private Mat getROI(CvCameraViewFrame inputFrame) {
-//        printLog(threshold.get(5, 5), "before 1");
-//        printLog(threshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "before 2");
+//        printLog(mSignThreshold.get(5, 5), "before 1");
+//        printLog(mSignThreshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "before 2");
         Rect roi = new Rect(0,(int) mGray.size().height / 2, (int) mGray.size().width,(int) mGray.size().height / 2);
-//        threshold = mGray.submat(roi);
-//        printLog(threshold.get(5, 5), "after copy 1");
-//        printLog(threshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "after copy 2");
+//        mSignThreshold = mGray.submat(roi);
+//        printLog(mSignThreshold.get(5, 5), "after copy 1");
+//        printLog(mSignThreshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "after copy 2");
 
         return new Mat(inputFrame.gray(),roi);
     }
@@ -373,10 +531,10 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     }
     private void trackFilteredObject() {
-        threshold.copyTo(contoursMat);
+        mSignThreshold.copyTo(contoursMat);
         contoursList.clear();
         Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        if (!isHSVState){
+        if (!isSignHSV){
             findAndDrawCenterMassContour();
         }
         Imgproc.drawContours(mRgba, contoursList, -1, CONTOUR_COLOR);
@@ -419,19 +577,6 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         return p;
     }
 
-    private void morphOps() {
-        Imgproc.erode(threshold, threshold, erodeElement);
-        Imgproc.erode(threshold, threshold, erodeElement);
-        Imgproc.dilate(threshold, threshold, dilateElement);
-        Imgproc.dilate(threshold, threshold, dilateElement);
-    }
-
-    private void filterHSVRange() {
-        Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
-        hsvMin = new Scalar(hMin,sMin,vMin);
-        hsvMax = new Scalar(hMax,sMax,vMax);
-        Core.inRange(mHsv,hsvMin,hsvMax,threshold);
-    }
 
     @Override
     public boolean onTouch(View view, MotionEvent motionEvent) {

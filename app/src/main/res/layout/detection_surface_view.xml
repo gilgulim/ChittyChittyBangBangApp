@@ -10,173 +10,294 @@
         android:layout_height="400dp"
         android:id="@+id/detection_activity_surface_view"/>
 
-    <GridLayout
-        android:layout_width="200dp"
-        android:layout_height="200dp"
-        android:id="@+id/seekBars"
-        android:layout_alignParentTop="true"
+
+    <ScrollView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/scrollView"
         android:layout_toRightOf="@+id/detection_activity_surface_view"
-        android:layout_toEndOf="@+id/detection_activity_surface_view">
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true">
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
-            <SeekBar
-                android:layout_width="150dp"
-                android:layout_height="30dp"
-                android:id="@+id/seekBarHMin"
-                android:layout_row="0"
-                android:layout_column="0" />
+            <HorizontalScrollView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:id="@+id/horizontalScrollView"
+                android:layout_alignParentLeft="true"
+                android:layout_alignParentStart="true"
+                android:layout_alignParentRight="true"
+                android:layout_alignParentEnd="true">
 
-            <TextView
-                android:layout_width="50dp"
-                android:layout_height="30dp"
-                android:paddingTop="6dp"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="H_Min"
-                android:id="@+id/textView"
-                android:layout_row="0"
-                android:layout_column="1"
-                android:textAlignment="center" />
+                <GridLayout
+                    android:layout_width="250dp"
+                    android:layout_height="wrap_content"
+                    android:id="@+id/gridLayout"
+                    android:layout_alignParentTop="true"
+                    android:layout_alignParentLeft="true"
+                    android:layout_alignParentStart="true">
+                    <ToggleButton
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:id="@+id/colorModel"
+                        android:textOff="RGB"
+                        android:textOn="HSV"
+                        android:layout_row="0"
+                        android:layout_column="0"
+                        android:checked="false" />
 
-            <SeekBar
-                android:layout_width="150dp"
-                android:layout_height="30dp"
-                android:id="@+id/seekBarHMax"
-                android:layout_row="1"
-                android:layout_column="0" />
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ROI"
+                        android:id="@+id/switchSignRoi"
+                        android:layout_row="1"
+                        android:layout_column="0"
+                        android:checked="false" />
 
-            <TextView
-                android:layout_width="50dp"
-                android:layout_height="30dp"
-                android:paddingTop="6dp"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="H_Max"
-                android:id="@+id/textView2"
-                android:layout_row="1"
-                android:layout_column="1"
-                android:textAlignment="center" />
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="MRP"
+                        android:id="@+id/switchLaneMorph"
+                        android:layout_row="2"
+                        android:layout_column="0"
+                        android:checked="false" />
 
-            <SeekBar
-                android:layout_width="150dp"
-                android:layout_height="30dp"
-                android:id="@+id/seekBarSMin"
-                android:layout_row="2"
-                android:layout_column="0" />
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ROI"
+                        android:id="@+id/switchRoi"
+                        android:layout_row="1"
+                        android:layout_column="1"
+                        android:checked="false" />
 
-            <TextView
-                android:layout_width="50dp"
-                android:layout_height="30dp"
-                android:paddingTop="6dp"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="S_Min"
-                android:id="@+id/textView3"
-                android:layout_row="2"
-                android:layout_column="1"
-                android:textAlignment="center" />
-            <SeekBar
-                android:layout_width="150dp"
-                android:layout_height="30dp"
-                android:id="@+id/seekBarSMax"
-                android:layout_row="3"
-                android:layout_column="0" />
-            <TextView
-                android:layout_width="50dp"
-                android:layout_height="30dp"
-                android:paddingTop="6dp"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="S_Max"
-                android:id="@+id/textView4"
-                android:layout_row="3"
-                android:layout_column="1"
-                android:textAlignment="center" />
-            <SeekBar
-                android:layout_width="150dp"
-                android:layout_height="30dp"
-                android:id="@+id/seekBarVMin"
-                android:layout_row="4"
-                android:layout_column="0"
-                android:focusableInTouchMode="true" />
-            <TextView
-                android:layout_width="50dp"
-                android:layout_height="30dp"
-                android:paddingTop="6dp"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="V_Min"
-                android:id="@+id/textView5"
-                android:layout_row="4"
-                android:layout_column="1"
-                android:textAlignment="center" />
-            <SeekBar
-                android:layout_width="150dp"
-                android:layout_height="30dp"
-                android:id="@+id/seekBarVMax"
-                android:layout_row="5"
-                android:layout_column="0"
-                android:focusableInTouchMode="true" />
-            <TextView
-                android:layout_width="50dp"
-                android:layout_height="30dp"
-                android:paddingTop="6dp"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="V_Max"
-                android:id="@+id/textView6"
-                android:layout_row="5"
-                android:layout_column="1"
-                android:textAlignment="center" />
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Track"
+                        android:id="@+id/switchTrack"
+                        android:layout_row="3"
+                        android:layout_column="0"
+                        android:checked="false" />
+
+                    <ToggleButton
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textOn="Lane"
+                        android:textOff="Sign"
+                        android:id="@+id/objType"
+                        android:layout_row="0"
+                        android:layout_column="1"
+                        android:checked="true" />
+
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="THD"
+                        android:id="@+id/switchThd"
+                        android:layout_row="2"
+                        android:layout_column="1"
+                        android:checked="false" />
+
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ERD"
+                        android:id="@+id/switchErd"
+                        android:layout_row="3"
+                        android:layout_column="1"
+                        android:checked="false" />
+
+                    <SeekBar
+                        android:layout_width="100dp"
+                        android:layout_height="30dp"
+                        android:id="@+id/seekBarCtrMin"
+                        android:layout_row="3"
+                        android:layout_column="2" />
+
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="CTR"
+                        android:id="@+id/switchCtr"
+                        android:layout_row="4"
+                        android:layout_column="1"
+                        android:checked="false" />
+
+                    <SeekBar
+                        android:layout_width="100dp"
+                        android:layout_height="30dp"
+                        android:id="@+id/seekBarCtrMax"
+                        android:layout_row="4"
+                        android:layout_column="2" />
+
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="HUG"
+                        android:id="@+id/switchHug"
+                        android:layout_row="5"
+                        android:layout_column="1"
+                        android:checked="false" />
+
+                    <SeekBar
+                        android:layout_width="100dp"
+                        android:layout_height="30dp"
+                        android:id="@+id/seekBarThd"
+                        android:layout_row="2"
+                        android:layout_column="2" />
+
+                    <TextView
+                        android:layout_width="50dp"
+                        android:layout_height="30dp"
+                        android:paddingTop="6dp"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:text="0"
+                        android:id="@+id/textViewLaneThd"
+                        android:layout_row="2"
+                        android:layout_column="3"
+                        android:textAlignment="center" />
+                    <TextView
+                        android:layout_width="50dp"
+                        android:layout_height="30dp"
+                        android:paddingTop="6dp"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:text="0"
+                        android:id="@+id/textViewLaneCtrMin"
+                        android:layout_row="3"
+                        android:layout_column="3"
+                        android:textAlignment="center" />
+                    <TextView
+                        android:layout_width="50dp"
+                        android:layout_height="30dp"
+                        android:paddingTop="6dp"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:text="0"
+                        android:id="@+id/textViewLaneCtrMax"
+                        android:layout_row="4"
+                        android:layout_column="3"
+                        android:textAlignment="center" />
+                </GridLayout>
+            </HorizontalScrollView>
+            <GridLayout
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:id="@+id/seekBars"
+                android:layout_below="@+id/horizontalScrollView">
+
+                <SeekBar
+                    android:layout_width="150dp"
+                    android:layout_height="30dp"
+                    android:id="@+id/seekBarHMin"
+                    android:layout_row="0"
+                    android:layout_column="0" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:paddingTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="H_Min"
+                    android:id="@+id/textViewHMin"
+                    android:layout_row="0"
+                    android:layout_column="1"
+                    android:textAlignment="center" />
+
+                <SeekBar
+                    android:layout_width="150dp"
+                    android:layout_height="30dp"
+                    android:id="@+id/seekBarHMax"
+                    android:layout_row="1"
+                    android:layout_column="0" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:paddingTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="H_Max"
+                    android:id="@+id/textViewHMax"
+                    android:layout_row="1"
+                    android:layout_column="1"
+                    android:textAlignment="center" />
+
+                <SeekBar
+                    android:layout_width="150dp"
+                    android:layout_height="30dp"
+                    android:id="@+id/seekBarSMin"
+                    android:layout_row="2"
+                    android:layout_column="0" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:paddingTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="S_Min"
+                    android:id="@+id/textViewSMin"
+                    android:layout_row="2"
+                    android:layout_column="1"
+                    android:textAlignment="center" />
+                <SeekBar
+                    android:layout_width="150dp"
+                    android:layout_height="30dp"
+                    android:id="@+id/seekBarSMax"
+                    android:layout_row="3"
+                    android:layout_column="0" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:paddingTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="S_Max"
+                    android:id="@+id/textViewSMax"
+                    android:layout_row="3"
+                    android:layout_column="1"
+                    android:textAlignment="center" />
+                <SeekBar
+                    android:layout_width="150dp"
+                    android:layout_height="30dp"
+                    android:id="@+id/seekBarVMin"
+                    android:layout_row="4"
+                    android:layout_column="0"
+                    android:focusableInTouchMode="true" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:paddingTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="V_Min"
+                    android:id="@+id/textViewVMin"
+                    android:layout_row="4"
+                    android:layout_column="1"
+                    android:textAlignment="center" />
+                <SeekBar
+                    android:layout_width="150dp"
+                    android:layout_height="30dp"
+                    android:id="@+id/seekBarVMax"
+                    android:layout_row="5"
+                    android:layout_column="0"
+                    android:focusableInTouchMode="true" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:paddingTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="V_Max"
+                    android:id="@+id/textViewVMax"
+                    android:layout_row="5"
+                    android:layout_column="1"
+                    android:textAlignment="center" />
+            </GridLayout>
+        </RelativeLayout>
 
 
-        </GridLayout>
-    <GridLayout
-        android:layout_width="200dp"
-        android:layout_height="200dp"
-        android:id="@+id/gridLayout"
-        android:layout_below="@+id/seekBars"
-        android:layout_toRightOf="@+id/detection_activity_surface_view"
-        android:layout_toEndOf="@+id/detection_activity_surface_view">
-        <ToggleButton
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/colorModel"
-            android:textOff="RGB"
-            android:textOn="HSV"
-            android:layout_row="0"
-            android:layout_column="0"
-            android:checked="false" />
+    </ScrollView>
 
-        <Switch
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Morph"
-            android:id="@+id/switchMorph"
-            android:layout_row="1"
-            android:layout_column="0"
-            android:checked="false" />
 
-        <Switch
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ROI"
-            android:id="@+id/switchRoi"
-            android:layout_row="1"
-            android:layout_column="1"
-            android:checked="false" />
 
-        <Switch
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Track"
-            android:id="@+id/switchTrack"
-            android:layout_row="2"
-            android:layout_column="0"
-            android:checked="false" />
-
-        <ToggleButton
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textOn="Lane"
-            android:textOff="Sign"
-            android:id="@+id/objType"
-            android:layout_row="0"
-            android:layout_column="1"
-            android:checked="true" />
-
-    </GridLayout>
 </RelativeLayout>
