@@ -39,12 +39,14 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat                 mRgba;
     private Mat                 mGray;
     private Mat                 mLaneThreshold;
+    private Mat                 mLaneResult;
     private Mat                 mHsv;
     private Mat                 erodeElement;
-    private Mat laneErodeElement;
+    private Mat                 laneErodeElement;
     private Mat                 dilateElement;
-    private Mat mSignThreshold;
+    private Mat                 mSignThreshold;
     private Mat                 contoursMat;
+    private Mat                 laneHoughLines;
     private List<MatOfPoint>    contoursList = new ArrayList<>();
     private static final int    CONTOUR_SIZE_THRESHOLD = 85;
     private Scalar              hsvMin;
@@ -437,8 +439,10 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         laneRoi = new Rect(0, height/2, width, height/2);
         signRoi = new Rect(width/2, 0, width/2, height);
         mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mLaneResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
+        laneHoughLines = new Mat();
         mGray = new Mat();
         mHsv = new Mat();
 
@@ -457,6 +461,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
+        mLaneResult = inputFrame.rgba();
         if(isLaneTrack){
             if (isLaneRoi){
                 mGray = inputFrame.gray().submat(laneRoi);
@@ -467,28 +472,50 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                     if(isLaneErd){
                         Imgproc.erode(mGray, mGray, laneErodeElement);
                         mGray.copyTo(mLaneThreshold.submat(laneRoi));
-                        if(isLaneCtr){
-                            laneMean = Core.mean(mGray).val[0];
+                        if(isLaneCtr) {
+                            laneMean = Core.mean(inputFrame.gray()).val[0];
                             Imgproc.Canny(mGray, mGray, laneMean * laneCtrMinConst, laneMean * laneCtrMaxConst);
-                            mGray.copyTo(mLaneThreshold.submat(laneRoi));
-                            if(isLaneHug){
-                                //todo complete
-                                mGray.copyTo(mLaneThreshold.submat(laneRoi));
-                            }
+                            mGray.rowRange(1, screenHeight/2 -1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
                         }
+                            if(isLaneHug){
+                                int threshold = 50;
+                                int minLineSize = 20;
+                                int lineGap = 20;
+
+                                Imgproc.HoughLinesP(mLaneThreshold, laneHoughLines, 1, Math.PI / 180, threshold, minLineSize, lineGap);
+                                for (int i = 0; i < laneHoughLines.rows(); i++) {
+                                    for (int x = 0; x < laneHoughLines.cols(); x++) {
+                                        double[] vec = laneHoughLines.get(0, x);
+                                        double x1 = vec[0],
+                                                y1 = vec[1],
+                                                x2 = vec[2],
+                                                y2 = vec[3];
+                                        Point start = new Point(x1, y1);
+                                        Point end = new Point(x2, y2);
+                                        Imgproc.line(mLaneResult, start, end, new Scalar(255, 0, 0), 3);
+                                    }
+                                }
+                                laneHoughLines.empty();
+                                return mLaneResult;
+                            }
+
                     }
                 }
-                return mLaneThreshold;
+                if(isLaneHug){
+                    return mLaneResult;
+                }else{
+                    return mLaneThreshold;
+                }
             }
             return inputFrame.gray();
         }else {
             if(isSignRoi){
                 mRgba = inputFrame.rgba().submat(laneRoi);;
                 mRgba.copyTo(mSignThreshold.submat(signRoi));
-                if(isSignHSV){
+                if (isSignHSV){
                     Imgproc.cvtColor(mRgba, mRgba, Imgproc.COLOR_RGB2HSV_FULL);
                     hsvMin = new Scalar(hMin,sMin,vMin);
-                    hsvMax = new Scalar(hMax,sMax,vMax);
+                    hsvMax = new Scalar(hMax,sMax, vMax);
                     Core.inRange(mRgba, hsvMin, hsvMax, mRgba);
                     mRgba.copyTo(mSignThreshold);
                     if (isSignMRP) {
