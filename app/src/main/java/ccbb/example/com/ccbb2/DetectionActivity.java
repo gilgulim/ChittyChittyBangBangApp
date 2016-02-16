@@ -2,6 +2,8 @@ package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
@@ -18,6 +20,7 @@ import org.opencv.core.Size;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.imgproc.Imgproc;
+import org.squirrelframework.foundation.fsm.UntypedStateMachine;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -32,6 +35,10 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.ToggleButton;
+
+import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
+import ccbb.example.com.ccbb2.enums.Action;
+import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
 
 public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
     private static final String  TAG = "OCVSample::Activity";
@@ -67,7 +74,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private boolean             isLaneCtr = false;
     private boolean             isLaneHug = false;
 
-    private double              laneThdConst = -1;
+    private double              laneThdConst = -2;
     private double              laneCtrMinConst = 0.66;
     private double              laneCtrMaxConst = 1.33;
     private double              laneMean;
@@ -86,7 +93,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     private CameraBridgeViewBase mOpenCvCameraView;
     private BaseLoaderCallback  mLoaderCallback;
-
+    private UntypedStateMachine fsm;
+    private CarDecisionFsm      carDecisionFsm;
     public DetectionActivity() {
         Log.i(TAG, "Instantiated new " + this.getClass());
     }
@@ -98,6 +106,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.detection_surface_view);
+
 
         mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
@@ -121,6 +130,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         };
 
         initComponents();
+        carDecisionFsm = new CarDecisionFsm();
+        fsm = carDecisionFsm.getBuilder().newStateMachine(Action.Forward);
     }
 
     private void initComponents() {
@@ -478,23 +489,51 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                             mGray.rowRange(1, screenHeight/2 -1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
                         }
                             if(isLaneHug){
+                                Set<PairOfPoints> lPoints = new TreeSet<>();
+                                Set<PairOfPoints> rPoints = new TreeSet<>();
                                 int threshold = 50;
-                                int minLineSize = 20;
+                                int minLineSize = 50;
                                 int lineGap = 20;
 
                                 Imgproc.HoughLinesP(mLaneThreshold, laneHoughLines, 1, Math.PI / 180, threshold, minLineSize, lineGap);
                                 for (int i = 0; i < laneHoughLines.rows(); i++) {
                                     for (int x = 0; x < laneHoughLines.cols(); x++) {
-                                        double[] vec = laneHoughLines.get(0, x);
+                                        double[] vec = laneHoughLines.get(i, x);
                                         double x1 = vec[0],
                                                 y1 = vec[1],
                                                 x2 = vec[2],
                                                 y2 = vec[3];
-                                        Point start = new Point(x1, y1);
-                                        Point end = new Point(x2, y2);
+
+                                        //discard horizontal lines
+                                        if(Math.abs(y1-y2) < 20){
+                                            continue;
+                                        }
+                                        Point start;
+                                        Point end;
+                                        if(y1 > y2){
+                                            start = new Point(x1, y1);
+                                            end = new Point(x2, y2);
+                                        }else{
+                                            end = new Point(x1, y1);
+                                            start = new Point(x2, y2);
+                                        }
+                                        if (x1 > screenWidth/2){
+                                            rPoints.add(new PairOfPoints(start, end));
+                                        }else{
+                                            lPoints.add(new PairOfPoints(start, end));
+                                        }
                                         Imgproc.line(mLaneResult, start, end, new Scalar(255, 0, 0), 3);
                                     }
                                 }
+                                PairOfPoints rlanePP;
+                                PairOfPoints llanePP;
+                                for (PairOfPoints pairOfPoints : rPoints) {
+                                    rlanePP = pairOfPoints;
+                                }
+                                for (PairOfPoints pairOfPoints : lPoints) {
+                                    llanePP = pairOfPoints;
+                                }
+
                                 laneHoughLines.empty();
                                 return mLaneResult;
                             }
