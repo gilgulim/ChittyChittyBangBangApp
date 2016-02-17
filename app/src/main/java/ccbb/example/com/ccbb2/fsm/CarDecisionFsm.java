@@ -1,6 +1,5 @@
 package ccbb.example.com.ccbb2.fsm;
 
-import org.squirrelframework.foundation.fsm.StateMachine;
 import org.squirrelframework.foundation.fsm.StateMachineBuilderFactory;
 import org.squirrelframework.foundation.fsm.UntypedStateMachineBuilder;
 

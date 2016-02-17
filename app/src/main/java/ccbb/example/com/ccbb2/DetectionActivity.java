@@ -39,6 +39,7 @@ import android.widget.ToggleButton;
 import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
+import ccbb.example.com.ccbb2.fsm.FsmManager;
 
 public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
     private static final String  TAG = "OCVSample::Activity";
@@ -132,6 +133,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         initComponents();
         carDecisionFsm = new CarDecisionFsm();
         fsm = carDecisionFsm.getBuilder().newStateMachine(Action.Forward);
+        //fsm.fire(FsmManager.FSMEvent.ToA, Action.None);
     }
 
     private void initComponents() {
@@ -443,7 +445,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         if (mOpenCvCameraView != null)
             mOpenCvCameraView.disableView();
     }
-//todo move hsvMin/Max to the event trigger
+
     public void onCameraViewStarted(int width, int height) {
         screenHeight = height;
         screenWidth = width;
@@ -473,6 +475,12 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
         mLaneResult = inputFrame.rgba();
+//        Thread t = new Thread(new Runnable() {
+//            @Override
+//            public void run() {
+//
+//            }
+//        });
         if(isLaneTrack){
             if (isLaneRoi){
                 mGray = inputFrame.gray().submat(laneRoi);
@@ -489,8 +497,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                             mGray.rowRange(1, screenHeight/2 -1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
                         }
                             if(isLaneHug){
-                                Set<PairOfPoints> lPoints = new TreeSet<>();
-                                Set<PairOfPoints> rPoints = new TreeSet<>();
+                                Set<PairOfPoints> leftLines = new TreeSet<>();
+                                Set<PairOfPoints> rightLines = new TreeSet<>();
                                 int threshold = 50;
                                 int minLineSize = 50;
                                 int lineGap = 20;
@@ -505,9 +513,11 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                                                 y2 = vec[3];
 
                                         //discard horizontal lines
-                                        if(Math.abs(y1-y2) < 20){
+                                        if(Math.abs(y1-y2) < 30){
                                             continue;
                                         }
+
+                                        //add lines to treeSets (lower point first)
                                         Point start;
                                         Point end;
                                         if(y1 > y2){
@@ -518,23 +528,62 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                                             start = new Point(x2, y2);
                                         }
                                         if (x1 > screenWidth/2){
-                                            rPoints.add(new PairOfPoints(start, end));
+                                            rightLines.add(new PairOfPoints(start, end));
                                         }else{
-                                            lPoints.add(new PairOfPoints(start, end));
+                                            leftLines.add(new PairOfPoints(start, end));
                                         }
-                                        Imgproc.line(mLaneResult, start, end, new Scalar(255, 0, 0), 3);
                                     }
                                 }
-                                PairOfPoints rlanePP;
-                                PairOfPoints llanePP;
-                                for (PairOfPoints pairOfPoints : rPoints) {
-                                    rlanePP = pairOfPoints;
-                                }
-                                for (PairOfPoints pairOfPoints : lPoints) {
-                                    llanePP = pairOfPoints;
-                                }
 
+                                List<Point> intersectionPoints = new ArrayList<>();
+                                Point intersectionPoint;
+                                Point centerPoint = new Point(0,0);
+                                PairOfPoints roadRightLane = new PairOfPoints(new Point(screenWidth, screenHeight), new Point(screenWidth,0));
+                                PairOfPoints roadLeftLane = new PairOfPoints(new Point(0, screenHeight), new Point(0,0));
+
+                                if(rightLines.size() > 0 && leftLines.size() > 0){
+                                    for (PairOfPoints rightLine : rightLines) {
+                                        for (PairOfPoints leftLine : leftLines) {
+                                            intersectionPoint = intersection(
+                                                    (int) rightLine.getPtLow().x,
+                                                    (int) rightLine.getPtLow().y,
+                                                    (int) rightLine.getPtHigh().x,
+                                                    (int) rightLine.getPtHigh().y,
+                                                    (int) leftLine.getPtLow().x,
+                                                    (int) leftLine.getPtLow().y,
+                                                    (int) leftLine.getPtHigh().x,
+                                                    (int) leftLine.getPtHigh().y);
+
+                                            if(intersectionPoint != null){
+                                                if(Math.abs(intersectionPoint.x - screenWidth/2) < Math.abs(centerPoint.x - screenWidth/2)){
+                                                    centerPoint = intersectionPoint;
+                                                    roadRightLane = rightLine;
+                                                    roadLeftLane = leftLine;
+                                                }
+                                                intersectionPoints.add(intersectionPoint);
+                                            }
+                                        }
+                                    }
+
+                                    int deviationThreshold = 20;
+                                    if(Math.abs(centerPoint.x - screenWidth/2) > deviationThreshold){
+                                        if(centerPoint.x > screenWidth/2){
+                                            //should turn right
+                                            Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(0, 255, 0), 3);
+                                            Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 255, 0, 0), 3);
+                                        }else{
+                                            //should turn left
+                                            Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                                            Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 0, 255, 0), 3);
+                                        }
+                                    }else{
+                                        //strait line
+                                        Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                                        Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                                    }
+                                }
                                 laneHoughLines.empty();
+
                                 return mLaneResult;
                             }
 
@@ -573,6 +622,16 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             }
             return inputFrame.rgba();
         }
+    }
+
+    private Point intersection(int p1x1, int p1y1, int p1x2, int p1y2, int p2x1, int p2y1, int p2x2, int p2y2) {
+        int d = (p1x1-p1x2)*(p2y1-p2y2) - (p1y1-p1y2)*(p2x1-p2x2);
+        if (d == 0) return null;
+
+        int xi = ((p2x1-p2x2)*(p1x1*p1y2-p1y1*p1x2)-(p1x1-p1x2)*(p2x1*p2y2-p2y1*p2x2))/d;
+        int yi = ((p2y1-p2y2)*(p1x1*p1y2-p1y1*p1x2)-(p1y1-p1y2)*(p2x1*p2y2-p2y1*p2x2))/d;
+
+        return new Point(xi,yi);
     }
 
     private Mat getROI(CvCameraViewFrame inputFrame) {

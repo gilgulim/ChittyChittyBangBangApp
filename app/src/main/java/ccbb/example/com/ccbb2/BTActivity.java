@@ -84,7 +84,7 @@ public class BTActivity extends Activity implements View.OnClickListener{
             public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
                 onOffLed = b;
                 writeData(onOffLed ? "1" : "0");
-                Toast.makeText(getApplicationContext(),onOffLed ? "LED ON" : "LED OFF",Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), onOffLed ? "LED ON" : "LED OFF", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -119,6 +119,9 @@ public class BTActivity extends Activity implements View.OnClickListener{
         }
     }
 
+    public void sendDataToDevice(String msg){
+        writeData(msg);
+    }
     private void writeData(String data) {
         try {
             outStream = btSocket.getOutputStream();
@@ -126,17 +129,14 @@ public class BTActivity extends Activity implements View.OnClickListener{
             Toast.makeText(getApplicationContext(),"Error in : outStream",Toast.LENGTH_SHORT).show();
         }
 
-        String message = data;
-        byte[] msgBuffer = message.getBytes();
-
         try {
-            outStream.write(msgBuffer);
+            outStream.write(data.getBytes());
         } catch (Exception e) {
             Toast.makeText(getApplicationContext(),"Error in : outStream.write",Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void connect() {
+    public void connect() {
         BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
         try {
             btSocket = device.createRfcommSocketToServiceRecord(MY_UUID);
