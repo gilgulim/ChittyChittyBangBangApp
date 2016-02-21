@@ -39,20 +39,20 @@ import android.widget.ToggleButton;
 import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
-import ccbb.example.com.ccbb2.fsm.FsmManager;
 
 public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
     private static final String  TAG = "OCVSample::Activity";
     private Mat                 mHierarchy;
     private Mat                 mRgba;
-    private Mat                 mGray;
+    private Mat                 mGrayLane;
+    private Mat                 mGraySign;
     private Mat                 mLaneThreshold;
+    private Mat                 mSignThreshold;
     private Mat                 mLaneResult;
     private Mat                 mHsv;
     private Mat                 erodeElement;
     private Mat                 laneErodeElement;
     private Mat                 dilateElement;
-    private Mat                 mSignThreshold;
     private Mat                 contoursMat;
     private Mat                 laneHoughLines;
     private List<MatOfPoint>    contoursList = new ArrayList<>();
@@ -454,9 +454,10 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mRgba = new Mat(height, width, CvType.CV_8UC4);
         mLaneResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
-        mSignThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
+        mSignThreshold = new Mat(height, width, CvType.CV_8UC4, new Scalar(0));
         laneHoughLines = new Mat();
-        mGray = new Mat();
+        mGrayLane = new Mat();
+        mGraySign = new Mat();
         mHsv = new Mat();
 
         mHierarchy = new Mat();
@@ -483,18 +484,18 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 //        });
         if(isLaneTrack){
             if (isLaneRoi){
-                mGray = inputFrame.gray().submat(laneRoi);
-                mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                mGrayLane = inputFrame.gray().submat(laneRoi);
+                mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
                 if(isLaneThd){
-                    Imgproc.adaptiveThreshold(mGray, mGray, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, laneThdConst);
-                    mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                    Imgproc.adaptiveThreshold(mGrayLane, mGrayLane, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, laneThdConst);
+                    mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
                     if(isLaneErd){
-                        Imgproc.erode(mGray, mGray, laneErodeElement);
-                        mGray.copyTo(mLaneThreshold.submat(laneRoi));
+                        Imgproc.erode(mGrayLane, mGrayLane, laneErodeElement);
+                        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
                         if(isLaneCtr) {
                             laneMean = Core.mean(inputFrame.gray()).val[0];
-                            Imgproc.Canny(mGray, mGray, laneMean * laneCtrMinConst, laneMean * laneCtrMaxConst);
-                            mGray.rowRange(1, screenHeight/2 -1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+                            Imgproc.Canny(mGrayLane, mGrayLane, laneMean * laneCtrMinConst, laneMean * laneCtrMaxConst);
+                            mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
                         }
                             if(isLaneHug){
                                 Set<PairOfPoints> leftLines = new TreeSet<>();
@@ -541,7 +542,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                                 PairOfPoints roadRightLane = new PairOfPoints(new Point(screenWidth, screenHeight), new Point(screenWidth,0));
                                 PairOfPoints roadLeftLane = new PairOfPoints(new Point(0, screenHeight), new Point(0,0));
 
-                                if(rightLines.size() > 0 && leftLines.size() > 0){
+                                if(rightLines.size() > 0 || leftLines.size() > 0){//todo:test case when only one line is visible
                                     for (PairOfPoints rightLine : rightLines) {
                                         for (PairOfPoints leftLine : leftLines) {
                                             intersectionPoint = intersection(
@@ -554,7 +555,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                                                     (int) leftLine.getPtHigh().x,
                                                     (int) leftLine.getPtHigh().y);
 
-                                            if(intersectionPoint != null){
+                                            if(intersectionPoint != null && intersectionPoint.y <(screenHeight/2)){//interPoint may be not relevant
                                                 if(Math.abs(intersectionPoint.x - screenWidth/2) < Math.abs(centerPoint.x - screenWidth/2)){
                                                     centerPoint = intersectionPoint;
                                                     roadRightLane = rightLine;
@@ -565,7 +566,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                                         }
                                     }
 
-                                    int deviationThreshold = 20;
+                                    int deviationThreshold = 40;
                                     if(Math.abs(centerPoint.x - screenWidth/2) > deviationThreshold){
                                         if(centerPoint.x > screenWidth/2){
                                             //should turn right
@@ -598,7 +599,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             return inputFrame.gray();
         }else {
             if(isSignRoi){
-                mRgba = inputFrame.rgba().submat(laneRoi);;
+                mRgba = inputFrame.rgba().submat(signRoi);;
                 mRgba.copyTo(mSignThreshold.submat(signRoi));
                 if (isSignHSV){
                     Imgproc.cvtColor(mRgba, mRgba, Imgproc.COLOR_RGB2HSV_FULL);
@@ -636,11 +637,11 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     private Mat getROI(CvCameraViewFrame inputFrame) {
 //        printLog(mSignThreshold.get(5, 5), "before 1");
-//        printLog(mSignThreshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "before 2");
-        Rect roi = new Rect(0,(int) mGray.size().height / 2, (int) mGray.size().width,(int) mGray.size().height / 2);
-//        mSignThreshold = mGray.submat(roi);
+//        printLog(mSignThreshold.get((int) mGrayLane.size().height - 5, (int) mGrayLane.size().width - 5), "before 2");
+        Rect roi = new Rect(0,(int) mGrayLane.size().height / 2, (int) mGrayLane.size().width,(int) mGrayLane.size().height / 2);
+//        mSignThreshold = mGrayLane.submat(roi);
 //        printLog(mSignThreshold.get(5, 5), "after copy 1");
-//        printLog(mSignThreshold.get((int) mGray.size().height - 5, (int) mGray.size().width - 5), "after copy 2");
+//        printLog(mSignThreshold.get((int) mGrayLane.size().height - 5, (int) mGrayLane.size().width - 5), "after copy 2");
 
         return new Mat(inputFrame.gray(),roi);
     }
