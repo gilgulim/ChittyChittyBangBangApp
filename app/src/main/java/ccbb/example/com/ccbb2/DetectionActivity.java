@@ -47,11 +47,12 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat                 mGrayLane;
     private Mat                 mGraySign;
     private Mat                 mLaneThreshold;
-    private Mat                 mSignThreshold;
+    private Mat                 mSignColorThreshold;
+    private Mat                 mSignShapeThreshold;
     private Mat                 mLaneResult;
     private Mat                 mHsv;
     private Mat                 erodeElement;
-    private Mat                 laneErodeElement;
+    private Mat genericErodeElement;
     private Mat                 dilateElement;
     private Mat                 contoursMat;
     private Mat                 laneHoughLines;
@@ -454,7 +455,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mRgba = new Mat(height, width, CvType.CV_8UC4);
         mLaneResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
-        mSignThreshold = new Mat(height, width, CvType.CV_8UC4, new Scalar(0));
+        mSignShapeThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
+        mSignColorThreshold = new Mat(height, width, CvType.CV_8UC4, new Scalar(0));
         laneHoughLines = new Mat();
         mGrayLane = new Mat();
         mGraySign = new Mat();
@@ -465,7 +467,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         contoursList = new ArrayList<>();
         CONTOUR_COLOR = new Scalar(255,0,0,255);
 
-        laneErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
+        genericErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
         erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
         dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
     }
@@ -475,154 +477,158 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-        mLaneResult = inputFrame.rgba();
-//        Thread t = new Thread(new Runnable() {
-//            @Override
-//            public void run() {
-//
-//            }
-//        });
         if(isLaneTrack){
-            if (isLaneRoi){
-                mGrayLane = inputFrame.gray().submat(laneRoi);
-                mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
-                if(isLaneThd){
-                    Imgproc.adaptiveThreshold(mGrayLane, mGrayLane, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, laneThdConst);
-                    mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
-                    if(isLaneErd){
-                        Imgproc.erode(mGrayLane, mGrayLane, laneErodeElement);
-                        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
-                        if(isLaneCtr) {
-                            laneMean = Core.mean(inputFrame.gray()).val[0];
-                            Imgproc.Canny(mGrayLane, mGrayLane, laneMean * laneCtrMinConst, laneMean * laneCtrMaxConst);
-                            mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
-                        }
-                            if(isLaneHug){
-                                Set<PairOfPoints> leftLines = new TreeSet<>();
-                                Set<PairOfPoints> rightLines = new TreeSet<>();
-                                int threshold = 50;
-                                int minLineSize = 50;
-                                int lineGap = 20;
-
-                                Imgproc.HoughLinesP(mLaneThreshold, laneHoughLines, 1, Math.PI / 180, threshold, minLineSize, lineGap);
-                                for (int i = 0; i < laneHoughLines.rows(); i++) {
-                                    for (int x = 0; x < laneHoughLines.cols(); x++) {
-                                        double[] vec = laneHoughLines.get(i, x);
-                                        double x1 = vec[0],
-                                                y1 = vec[1],
-                                                x2 = vec[2],
-                                                y2 = vec[3];
-
-                                        //discard horizontal lines
-                                        if(Math.abs(y1-y2) < 30){
-                                            continue;
-                                        }
-
-                                        //add lines to treeSets (lower point first)
-                                        Point start;
-                                        Point end;
-                                        if(y1 > y2){
-                                            start = new Point(x1, y1);
-                                            end = new Point(x2, y2);
-                                        }else{
-                                            end = new Point(x1, y1);
-                                            start = new Point(x2, y2);
-                                        }
-                                        if (x1 > screenWidth/2){
-                                            rightLines.add(new PairOfPoints(start, end));
-                                        }else{
-                                            leftLines.add(new PairOfPoints(start, end));
-                                        }
-                                    }
-                                }
-
-                                List<Point> intersectionPoints = new ArrayList<>();
-                                Point intersectionPoint;
-                                Point centerPoint = new Point(0,0);
-                                PairOfPoints roadRightLane = new PairOfPoints(new Point(screenWidth, screenHeight), new Point(screenWidth,0));
-                                PairOfPoints roadLeftLane = new PairOfPoints(new Point(0, screenHeight), new Point(0,0));
-
-                                if(rightLines.size() > 0 || leftLines.size() > 0){//todo:test case when only one line is visible
-                                    for (PairOfPoints rightLine : rightLines) {
-                                        for (PairOfPoints leftLine : leftLines) {
-                                            intersectionPoint = intersection(
-                                                    (int) rightLine.getPtLow().x,
-                                                    (int) rightLine.getPtLow().y,
-                                                    (int) rightLine.getPtHigh().x,
-                                                    (int) rightLine.getPtHigh().y,
-                                                    (int) leftLine.getPtLow().x,
-                                                    (int) leftLine.getPtLow().y,
-                                                    (int) leftLine.getPtHigh().x,
-                                                    (int) leftLine.getPtHigh().y);
-
-                                            if(intersectionPoint != null && intersectionPoint.y <(screenHeight/2)){//interPoint may be not relevant
-                                                if(Math.abs(intersectionPoint.x - screenWidth/2) < Math.abs(centerPoint.x - screenWidth/2)){
-                                                    centerPoint = intersectionPoint;
-                                                    roadRightLane = rightLine;
-                                                    roadLeftLane = leftLine;
-                                                }
-                                                intersectionPoints.add(intersectionPoint);
-                                            }
-                                        }
-                                    }
-
-                                    int deviationThreshold = 40;
-                                    if(Math.abs(centerPoint.x - screenWidth/2) > deviationThreshold){
-                                        if(centerPoint.x > screenWidth/2){
-                                            //should turn right
-                                            Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(0, 255, 0), 3);
-                                            Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 255, 0, 0), 3);
-                                        }else{
-                                            //should turn left
-                                            Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
-                                            Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 0, 255, 0), 3);
-                                        }
-                                    }else{
-                                        //strait line
-                                        Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
-                                        Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar(255, 0, 0), 3);
-                                    }
-                                }
-                                laneHoughLines.empty();
-
-                                return mLaneResult;
-                            }
-
-                    }
-                }
-                if(isLaneHug){
-                    return mLaneResult;
-                }else{
-                    return mLaneThreshold;
-                }
-            }
-            return inputFrame.gray();
+            return analyzeRoadByShape(inputFrame);
         }else {
-            if(isSignRoi){
-                mRgba = inputFrame.rgba().submat(signRoi);;
-                mRgba.copyTo(mSignThreshold.submat(signRoi));
-                if (isSignHSV){
-                    Imgproc.cvtColor(mRgba, mRgba, Imgproc.COLOR_RGB2HSV_FULL);
-                    hsvMin = new Scalar(hMin,sMin,vMin);
-                    hsvMax = new Scalar(hMax,sMax, vMax);
-                    Core.inRange(mRgba, hsvMin, hsvMax, mRgba);
-                    mRgba.copyTo(mSignThreshold);
-                    if (isSignMRP) {
-                        Imgproc.erode(mRgba, mRgba, erodeElement);
-                        Imgproc.erode(mRgba, mRgba, erodeElement);
-                        Imgproc.dilate(mRgba, mRgba, dilateElement);
-                        Imgproc.dilate(mRgba, mRgba, dilateElement);
-                        mRgba.copyTo(mSignThreshold);
-                        if (isTracked) {
-                            //trackFilteredObject();
-                            Imgproc.findContours(mRgba, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+            //return analyzeSignByColor(inputFrame);
+            return analyzeSignByShape(inputFrame);
+        }
+    }
+
+    private Mat analyzeSignByColor(CvCameraViewFrame inputFrame) {
+        if(isSignRoi){
+            mRgba = inputFrame.rgba().submat(signRoi);;
+            mRgba.copyTo(mSignColorThreshold.submat(signRoi));
+            if (isSignHSV){
+                Imgproc.cvtColor(mRgba, mRgba, Imgproc.COLOR_RGB2HSV_FULL);
+                hsvMin = new Scalar(hMin,sMin,vMin);
+                hsvMax = new Scalar(hMax,sMax, vMax);
+                Core.inRange(mRgba, hsvMin, hsvMax, mRgba);
+                mRgba.copyTo(mSignColorThreshold);
+                if (isSignMRP) {
+                    Imgproc.erode(mRgba, mRgba, erodeElement);
+                    Imgproc.erode(mRgba, mRgba, erodeElement);
+                    Imgproc.dilate(mRgba, mRgba, dilateElement);
+                    Imgproc.dilate(mRgba, mRgba, dilateElement);
+                    mRgba.copyTo(mSignColorThreshold);
+                    if (isTracked) {
+                        //trackFilteredObject();
+                        Imgproc.findContours(mRgba, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+                    }
+                }
+            }
+            return mSignColorThreshold;
+        }
+        return inputFrame.rgba();
+    }
+
+    private Mat analyzeSignByShape(CvCameraViewFrame inputFrame) {
+        //extract ROI
+        mGraySign = inputFrame.gray().submat(signRoi);
+        mGraySign.copyTo(mSignShapeThreshold.submat(signRoi));
+        //perform adaptive threshold
+        Imgproc.adaptiveThreshold(mGraySign, mGraySign, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, laneThdConst);
+        mGraySign.copyTo(mSignShapeThreshold.submat(signRoi));
+        //perform erode
+        Imgproc.erode(mGraySign, mGraySign, genericErodeElement);
+        mGraySign.copyTo(mSignShapeThreshold.submat(signRoi));
+        //find contours
+        double colorMean = Core.mean(mSignShapeThreshold.submat(signRoi)).val[0];
+        Imgproc.Canny(mGraySign, mGraySign, colorMean * 0.66, colorMean * 1.33);
+        mGraySign.rowRange( 1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+        return mSignShapeThreshold; //todo change
+    }
+
+    private Mat analyzeRoadByShape(CvCameraViewFrame inputFrame) {
+        mLaneResult = inputFrame.rgba();
+        //extract ROI
+        mGrayLane = inputFrame.gray().submat(laneRoi);
+        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
+        //perform adaptive threshold
+        Imgproc.adaptiveThreshold(mGrayLane, mGrayLane, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 3, laneThdConst);
+        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
+        //perform erode
+        Imgproc.erode(mGrayLane, mGrayLane, genericErodeElement);
+        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
+        //find contours
+        laneMean = Core.mean(inputFrame.gray()).val[0];
+        Imgproc.Canny(mGrayLane, mGrayLane, laneMean * laneCtrMinConst, laneMean * laneCtrMaxConst);
+        mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+        //find lines based on hough algorithm
+        Set<PairOfPoints> leftLines = new TreeSet<>();
+        Set<PairOfPoints> rightLines = new TreeSet<>();
+        int threshold = 50;
+        int minLineSize = 50;
+        int lineGap = 20;
+
+        Imgproc.HoughLinesP(mLaneThreshold, laneHoughLines, 1, Math.PI / 180, threshold, minLineSize, lineGap);
+        for (int i = 0; i < laneHoughLines.rows(); i++) {
+            for (int x = 0; x < laneHoughLines.cols(); x++) {
+                double[] vec = laneHoughLines.get(i, x);
+                double x1 = vec[0],
+                        y1 = vec[1],
+                        x2 = vec[2],
+                        y2 = vec[3];
+
+                //discard horizontal lines
+                if(Math.abs(y1-y2) < 30){
+                    continue;
+                }
+
+                //add lines to treeSets (lower point first)
+                Point start;
+                Point end;
+                if(y1 > y2){
+                    start = new Point(x1, y1);
+                    end = new Point(x2, y2);
+                }else{
+                    end = new Point(x1, y1);
+                    start = new Point(x2, y2);
+                }
+                if (x1 > screenWidth/2){
+                    rightLines.add(new PairOfPoints(start, end));
+                }else{
+                    leftLines.add(new PairOfPoints(start, end));
+                }
+            }
+        }
+        laneHoughLines.empty();
+        Point intersectionPoint;
+        Point centerPoint = new Point(0,0);
+        PairOfPoints roadRightLane = new PairOfPoints(new Point(screenWidth, screenHeight), new Point(screenWidth,0));
+        PairOfPoints roadLeftLane = new PairOfPoints(new Point(0, screenHeight), new Point(0,0));
+
+        if(rightLines.size() > 0 || leftLines.size() > 0){//todo:test case when only one line is visible
+            for (PairOfPoints rightLine : rightLines) {
+                for (PairOfPoints leftLine : leftLines) {
+                    intersectionPoint = intersection(
+                            (int) rightLine.getPtLow().x,
+                            (int) rightLine.getPtLow().y,
+                            (int) rightLine.getPtHigh().x,
+                            (int) rightLine.getPtHigh().y,
+                            (int) leftLine.getPtLow().x,
+                            (int) leftLine.getPtLow().y,
+                            (int) leftLine.getPtHigh().x,
+                            (int) leftLine.getPtHigh().y);
+
+                    if(intersectionPoint != null && intersectionPoint.y <(screenHeight/2)){//interPoint may be not relevant
+                        if(Math.abs(intersectionPoint.x - screenWidth/2) < Math.abs(centerPoint.x - screenWidth/2)){
+                            centerPoint = intersectionPoint;
+                            roadRightLane = rightLine;
+                            roadLeftLane = leftLine;
                         }
                     }
                 }
-                return mSignThreshold;
             }
-            return inputFrame.rgba();
+
+            int deviationThreshold = 40;
+            if(Math.abs(centerPoint.x - screenWidth/2) > deviationThreshold && centerPoint.x != 0){//center point may remains 0,0
+                if(centerPoint.x > screenWidth/2){
+                    //should turn right
+                    Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(0, 255, 0), 3);
+                    Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 255, 0, 0), 3);
+                }else{
+                    //should turn left
+                    Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                    Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 0, 255, 0), 3);
+                }
+            }else{
+                //strait line
+                Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+            }
         }
+        return mLaneResult;
     }
 
     private Point intersection(int p1x1, int p1y1, int p1x2, int p1y2, int p2x1, int p2y1, int p2x2, int p2y2) {
@@ -636,12 +642,12 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     }
 
     private Mat getROI(CvCameraViewFrame inputFrame) {
-//        printLog(mSignThreshold.get(5, 5), "before 1");
-//        printLog(mSignThreshold.get((int) mGrayLane.size().height - 5, (int) mGrayLane.size().width - 5), "before 2");
+//        printLog(mSignColorThreshold.get(5, 5), "before 1");
+//        printLog(mSignColorThreshold.get((int) mGrayLane.size().height - 5, (int) mGrayLane.size().width - 5), "before 2");
         Rect roi = new Rect(0,(int) mGrayLane.size().height / 2, (int) mGrayLane.size().width,(int) mGrayLane.size().height / 2);
-//        mSignThreshold = mGrayLane.submat(roi);
-//        printLog(mSignThreshold.get(5, 5), "after copy 1");
-//        printLog(mSignThreshold.get((int) mGrayLane.size().height - 5, (int) mGrayLane.size().width - 5), "after copy 2");
+//        mSignColorThreshold = mGrayLane.submat(roi);
+//        printLog(mSignColorThreshold.get(5, 5), "after copy 1");
+//        printLog(mSignColorThreshold.get((int) mGrayLane.size().height - 5, (int) mGrayLane.size().width - 5), "after copy 2");
 
         return new Mat(inputFrame.gray(),roi);
     }
@@ -657,7 +663,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     }
     private void trackFilteredObject() {
-        mSignThreshold.copyTo(contoursMat);
+        mSignColorThreshold.copyTo(contoursMat);
         contoursList.clear();
         Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
         if (!isSignHSV){
