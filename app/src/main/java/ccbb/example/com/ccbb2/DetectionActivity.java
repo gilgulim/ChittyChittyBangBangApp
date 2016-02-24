@@ -35,6 +35,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
+import ccbb.example.com.ccbb2.dataobjects.Circle;
 import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
@@ -443,18 +444,31 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                 ConfigConstants.SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_MAX_RADIUS);
 
         int numberOfCircles = (signHoughCircles.rows() == 0) ? 0 : signHoughCircles.cols();
+        Set<Circle> circleSet = new TreeSet<>();
         for (int i=0; i<numberOfCircles; i++) {
             // get the circle details, circleCoordinates[0, 1, 2] = (x,y,r)
             double[] circleCoordinates = signHoughCircles.get(0, i);
-            int x = (int) circleCoordinates[0], y = (int) circleCoordinates[1];
-            Point center = new Point(x, y);
-            int radius = (int) circleCoordinates[2];
+            circleSet.add(new Circle((int) circleCoordinates[2], new Point((int) circleCoordinates[0], (int) circleCoordinates[1])));
+        }
+        if(circleSet.size() > 0){
+            int meanX = 0;
+            int meanY = 0;
+            int meanR = 0;
+            for (Circle circle : circleSet) {
+                meanX += circle.getCenter().x;
+                meanY += circle.getCenter().y;
+                meanR += circle.getRadius();
+            }
+            meanX = meanX/circleSet.size();
+            meanY = meanY/circleSet.size();
+            meanR = meanR/circleSet.size();
 
-            Imgproc.circle(mDetectionResult, center, radius, ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
-            Imgproc.putText(mDetectionResult, "r:" + radius, center, ConfigConstants.DEFAULT_FONT, ConfigConstants.SCALE_SIZE_MEDIUM, ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THIN);
-            Imgproc.rectangle(mDetectionResult, new Point(x - 5, y - 5),
-                    new Point(x + 5, y + 5),
+            Imgproc.circle(mDetectionResult, new Point(meanX+20, meanY+20), meanR, ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
+            Imgproc.rectangle(mDetectionResult, new Point(meanX - 5, meanY - 5),
+                    new Point(meanX + 5, meanY + 5),
                     ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_FILL_SHAPE);
+        }else{
+            printActionToScreen(Action.None, 2);
         }
     }
 

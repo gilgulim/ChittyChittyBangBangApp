@@ -6,8 +6,8 @@ import org.opencv.core.Scalar;
  * Created by gil on 24/02/2016.
  */
 public class ConfigConstants {
+    public static final Scalar RED_COLOR = new Scalar(255, 0, 0);
     public static final Scalar GREEN_COLOR = new Scalar(0, 255, 0);
-    public static final Scalar RED_COLOR = new Scalar(0, 255, 0);
     public static final Scalar BLUE_COLOR = new Scalar(0, 0, 255);
     public static final Scalar WHITE_COLOR = new Scalar(255, 255, 255);
     public static final Scalar BLACK_COLOR = new Scalar(0, 0, 0);
@@ -31,7 +31,7 @@ public class ConfigConstants {
     public static final double SIGN_DETECTION_BY_SHAPE_CANNY_THRESHOLD_2 = 1.33;
 
     public static final double SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_DP = 1.2; // accumulator value
-    public static final int SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_MIN_DISTANCE = 100; // minimum distance between the center coordinates of detected circles in pixels
+    public static final int SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_MIN_DISTANCE = 5; // minimum distance between the center coordinates of detected circles in pixels
     public static final int SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_PARAM_1 = 70; //gradient value used to handle edge detection
     public static final int SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_PARAM_2 = 50; //Accumulator threshold value for thecv2.CV_HOUGH_GRADIENT method. (smaller - more cicrles with false circles)
     public static final int SIGN_DETECTION_BY_SHAPE_HOUGH_CIRCLE_MIN_RADIUS = 40;
