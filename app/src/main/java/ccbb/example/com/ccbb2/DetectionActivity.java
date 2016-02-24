@@ -1,6 +1,7 @@
 package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -13,6 +14,7 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -54,7 +56,6 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private List<MatOfPoint> contoursList = new ArrayList<>();
     private Scalar hsvMin;
     private Scalar hsvMax;
-    private Scalar CONTOUR_COLOR;
 
     //lane detection by shape
     private Mat mGrayLane;
@@ -152,7 +153,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
         initToggleButtons();
 
-        initHsvSeekbars(textViewSignHMin, textViewSignHMax, textViewSignSMin, textViewSignSMax, textViewSignVMin, textViewSignVMax);
+        initHsvSeekBars(textViewSignHMin, textViewSignHMax, textViewSignSMin, textViewSignSMax, textViewSignVMin, textViewSignVMax);
     }
 
     private void initToggleButtons() {
@@ -184,7 +185,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         });
     }
 
-    private void initHsvSeekbars(final TextView textViewSignHMin, final TextView textViewSignHMax, final TextView textViewSignSMin, final TextView textViewSignSMax, final TextView textViewSignVMin, final TextView textViewSignVMax) {
+    private void initHsvSeekBars(final TextView textViewSignHMin, final TextView textViewSignHMax, final TextView textViewSignSMin, final TextView textViewSignSMax, final TextView textViewSignVMin, final TextView textViewSignVMax) {
         SeekBar hMinSeekBar = (SeekBar) findViewById(R.id.seekBarHMin);
         hMinSeekBar.setMax(ConfigConstants.SEEK_BAR_MAX_VALUE);
         hMinSeekBar.setProgress(hMin);
@@ -352,7 +353,6 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mHierarchy = new Mat();
         contoursMat = new Mat();
         contoursList = new ArrayList<>();
-        CONTOUR_COLOR = new Scalar(255,0,0,255);
 
         genericErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
         erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
@@ -361,6 +361,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     public void onCameraViewStopped() {
         mRgba.release();
+        //todo: release all matrixes
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
@@ -463,13 +464,33 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             meanY = meanY/circleSet.size();
             meanR = meanR/circleSet.size();
 
-            Imgproc.circle(mDetectionResult, new Point(meanX+20, meanY+20), meanR, ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
+            Imgproc.circle(mDetectionResult, new Point(meanX, meanY), meanR+20, ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
             Imgproc.rectangle(mDetectionResult, new Point(meanX - 5, meanY - 5),
                     new Point(meanX + 5, meanY + 5),
                     ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_FILL_SHAPE);
         }else{
             printActionToScreen(Action.None, 2);
         }
+
+        //find rectangles
+        //todo temp use of contourList & hierarchy
+        Imgproc.findContours(mSignShapeThreshold, contoursList,mHierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        MatOfPoint2f approxMop2f  = new MatOfPoint2f();
+        MatOfPoint2f conMop2f;
+        for (MatOfPoint con : contoursList) {
+            conMop2f  = new MatOfPoint2f(con.toArray());
+            Imgproc.approxPolyDP(conMop2f, approxMop2f, Imgproc.arcLength(conMop2f, true) * 0.02, true);
+            if(Imgproc.contourArea(con) < 100 || Imgproc.isContourConvex(new MatOfPoint(approxMop2f.toArray()))){
+                continue;
+            }
+
+            //if(approxMop2f.elemSize() == 3){
+                Imgproc.drawContours(mDetectionResult, Collections.singletonList(new MatOfPoint(approxMop2f.toArray())), -1, ConfigConstants.BLACK_COLOR, ConfigConstants.THICKNESS_THICK);
+            //}
+        }
+
+        //Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLACK_COLOR, ConfigConstants.THICKNESS_THICK);
+        contoursList.clear();
     }
 
     private void analyzeLaneByShape(CvCameraViewFrame inputFrame) {
@@ -629,7 +650,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         contoursList.clear();
         Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
         findAndDrawCenterMassContour();
-        Imgproc.drawContours(mDetectionResult, contoursList, -1, CONTOUR_COLOR);
+        Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLUE_COLOR);
     }
 
     private void findAndDrawCenterMassContour() {
