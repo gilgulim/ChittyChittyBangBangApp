@@ -49,13 +49,14 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat                 mLaneThreshold;
     private Mat                 mSignColorThreshold;
     private Mat                 mSignShapeThreshold;
-    private Mat                 mLaneResult;
+    private Mat mDetectionResult;
     private Mat                 mHsv;
     private Mat                 erodeElement;
     private Mat genericErodeElement;
     private Mat                 dilateElement;
     private Mat                 contoursMat;
     private Mat                 laneHoughLines;
+    private Mat                 signHoughCircles;
     private List<MatOfPoint>    contoursList = new ArrayList<>();
     private static final int    CONTOUR_SIZE_THRESHOLD = 85;
     private Scalar              hsvMin;
@@ -75,6 +76,9 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private boolean             isLaneErd = false;
     private boolean             isLaneCtr = false;
     private boolean             isLaneHug = false;
+
+    //tmp
+    int tmp=50;
 
     private double              laneThdConst = -2;
     private double              laneCtrMinConst = 0.66;
@@ -138,6 +142,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     }
 
     private void initComponents() {
+        final TextView textViewP1 = (TextView) findViewById(R.id.textViewP1);
+        textViewP1.setText(tmp+"");
         final TextView textViewLaneThdValue = (TextView) findViewById(R.id.textViewLaneThd);
         textViewLaneThdValue.setText(laneThdConst+"");
         final TextView textViewLaneCtrMinValue = (TextView) findViewById(R.id.textViewLaneCtrMin);
@@ -183,7 +189,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 hMin = i;
-                textViewSignHMin.setText(hMin+"");
+                textViewSignHMin.setText(hMin + "");
             }
 
             @Override
@@ -203,7 +209,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 hMax = i;
-                textViewSignHMax.setText(hMax+"");
+                textViewSignHMax.setText(hMax + "");
             }
 
             @Override
@@ -223,7 +229,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 sMin = i;
-                textViewSignSMin.setText(sMin+"");
+                textViewSignSMin.setText(sMin + "");
             }
 
             @Override
@@ -243,7 +249,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 sMax = i;
-                textViewSignSMax.setText(sMax+"");
+                textViewSignSMax.setText(sMax + "");
             }
 
             @Override
@@ -263,7 +269,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 vMin = i;
-                textViewSignVMin.setText(vMin+"");
+                textViewSignVMin.setText(vMin + "");
             }
 
             @Override
@@ -283,7 +289,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                 vMax = i;
-                textViewSignVMax.setText(vMax+"");
+                textViewSignVMax.setText(vMax + "");
             }
 
             @Override
@@ -354,6 +360,25 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             }
         });
 
+
+        final SeekBar signCirclePSeekBar = (SeekBar) findViewById(R.id.seekBarP1);
+        laneCtrMinSeekBar.setProgress((int)70);
+        laneCtrMinSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                tmp = i;
+                textViewP1.setText(i+"");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
 
         Switch switchSignRoi = (Switch) findViewById(R.id.switchSignRoi);
         switchSignRoi.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -453,11 +478,12 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         laneRoi = new Rect(0, height/2, width, height/2);
         signRoi = new Rect(width/2, 0, width/2, height);
         mRgba = new Mat(height, width, CvType.CV_8UC4);
-        mLaneResult = new Mat(height, width, CvType.CV_8UC4);
+        mDetectionResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignShapeThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignColorThreshold = new Mat(height, width, CvType.CV_8UC4, new Scalar(0));
         laneHoughLines = new Mat();
+        signHoughCircles = new Mat();
         mGrayLane = new Mat();
         mGraySign = new Mat();
         mHsv = new Mat();
@@ -477,6 +503,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
+        mDetectionResult = inputFrame.rgba();
         if(isLaneTrack){
             return analyzeRoadByShape(inputFrame);
         }else {
@@ -525,12 +552,51 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         //find contours
         double colorMean = Core.mean(mSignShapeThreshold.submat(signRoi)).val[0];
         Imgproc.Canny(mGraySign, mGraySign, colorMean * 0.66, colorMean * 1.33);
-        mGraySign.rowRange( 1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+        mGraySign.colRange(1, screenWidth / 2 - 1).copyTo(mSignShapeThreshold.submat(0, screenHeight, screenWidth/2 + 1, screenWidth - 1));
+        if(isLaneRoi){
+            // param1 = gradient value used to handle edge detection
+            // param2 = Accumulator threshold value for the
+            // cv2.CV_HOUGH_GRADIENT method.
+            // The smaller the threshold is, the more circles will be
+            // detected (including false circles).
+            // The larger the threshold is, the more circles will
+            // potentially be returned.
+            int maxRadius = 100;
+            int minRadius = 40;
+            int param2 = tmp;
+            int param1 = 70;
+            int minDist = 100; // minimum distance between the center coordinates of detected circles in pixels
+            double dp = 1.2d; // accumulator value
+
+            Imgproc.HoughCircles(mSignShapeThreshold, signHoughCircles, Imgproc.CV_HOUGH_GRADIENT, dp, minDist, param1, param2, minRadius, maxRadius);
+            /* draw the circles found on the image */
+            int numberOfCircles = (signHoughCircles.rows() == 0) ? 0 : signHoughCircles.cols();
+            for (int i=0; i<numberOfCircles; i++) {
+                /* get the circle details, circleCoordinates[0, 1, 2] = (x,y,r)
+                 * (x,y) are the coordinates of the circle's center
+                 */
+                double[] circleCoordinates = signHoughCircles.get(0, i);
+                int x = (int) circleCoordinates[0], y = (int) circleCoordinates[1];
+                Point center = new Point(x, y);
+                int radius = (int) circleCoordinates[2];
+
+                /* circle's outline */
+                Imgproc.circle(mDetectionResult, center, radius, new Scalar(0,255, 0), 4);
+
+                /* circle's center outline */
+                Imgproc.putText(mDetectionResult, "r:"+radius, center, 1, 2,  new Scalar(0, 255, 0), 1);
+                Imgproc.rectangle(mDetectionResult, new Point(x - 5, y - 5),
+                        new Point(x + 5, y + 5),
+                        new Scalar(0, 128, 255), -1);
+            }
+
+            return mDetectionResult;
+        }
         return mSignShapeThreshold; //todo change
     }
 
     private Mat analyzeRoadByShape(CvCameraViewFrame inputFrame) {
-        mLaneResult = inputFrame.rgba();
+
         //extract ROI
         mGrayLane = inputFrame.gray().submat(laneRoi);
         mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
@@ -615,20 +681,23 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             if(Math.abs(centerPoint.x - screenWidth/2) > deviationThreshold && centerPoint.x != 0){//center point may remains 0,0
                 if(centerPoint.x > screenWidth/2){
                     //should turn right
-                    Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(0, 255, 0), 3);
-                    Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 255, 0, 0), 3);
+                    printActionToScreen(Action.TurnRight);
+                    Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                    Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 0, 255, 0), 3);
                 }else{
                     //should turn left
-                    Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
-                    Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 0, 255, 0), 3);
+                    printActionToScreen(Action.TurnLeft);
+                    Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(0, 255, 0), 3);
+                    Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar( 255, 0, 0), 3);
                 }
             }else{
                 //strait line
-                Imgproc.line(mLaneResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(255, 0, 0), 3);
-                Imgproc.line(mLaneResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar(255, 0, 0), 3);
+                printActionToScreen(Action.Forward);
+                Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), new Scalar(0, 255, 0), 3);
+                Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), new Scalar(0, 255, 0), 3);
             }
         }
-        return mLaneResult;
+        return mDetectionResult;
     }
 
     private Point intersection(int p1x1, int p1y1, int p1x2, int p1y2, int p2x1, int p2y1, int p2x2, int p2y2) {
@@ -652,16 +721,14 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         return new Mat(inputFrame.gray(),roi);
     }
 
-    private void printLog(double[] doubles, String m){
-        if(doubles != null){
-            for (double  d : doubles) {
-                Log.d(TAG, m + " : " + d);
-            }
-        }else{
-            Log.d(TAG, m + " : null");
-        }
-
+    private void printActionToScreen(Action action){
+        printActionToScreen(action, 1);
     }
+
+    private void printActionToScreen(Action action, int row){
+        Imgproc.putText(mDetectionResult, action.name(), new Point(40, 40*row), 1, 3,  new Scalar(0, 255, 0), 2);
+    }
+
     private void trackFilteredObject() {
         mSignColorThreshold.copyTo(contoursMat);
         contoursList.clear();

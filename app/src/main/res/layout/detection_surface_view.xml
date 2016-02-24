@@ -38,31 +38,44 @@
                     android:layout_alignParentTop="true"
                     android:layout_alignParentLeft="true"
                     android:layout_alignParentStart="true">
+
+                    <ToggleButton
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textOn="sign C on"
+                        android:textOff="sign C off"
+                        android:id="@+id/toggleButton2"
+                        android:layout_row="0"
+                        android:layout_column="0"
+                        android:checked="false" />
+
+                    <ToggleButton
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textOn="sign S on"
+                        android:textOff="sign S off"
+                        android:id="@+id/toggleButton"
+                        android:layout_row="0"
+                        android:layout_column="1"
+                        android:checked="false" />
+
+                    <ToggleButton
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textOn="Lane on"
+                        android:textOff="Lane off"
+                        android:id="@+id/objType"
+                        android:layout_row="0"
+                        android:layout_column="2"
+                        android:checked="false" />
+
                     <ToggleButton
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:id="@+id/colorModel"
                         android:textOff="RGB"
                         android:textOn="HSV"
-                        android:layout_row="0"
-                        android:layout_column="0"
-                        android:checked="false" />
-
-                    <Switch
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="ROI"
-                        android:id="@+id/switchSignRoi"
                         android:layout_row="1"
-                        android:layout_column="0"
-                        android:checked="false" />
-
-                    <Switch
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="MRP"
-                        android:id="@+id/switchLaneMorph"
-                        android:layout_row="2"
                         android:layout_column="0"
                         android:checked="false" />
 
@@ -78,21 +91,11 @@
                     <Switch
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Track"
-                        android:id="@+id/switchTrack"
-                        android:layout_row="3"
+                        android:text="ROI"
+                        android:id="@+id/switchSignRoi"
+                        android:layout_row="2"
                         android:layout_column="0"
                         android:checked="false" />
-
-                    <ToggleButton
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textOn="Lane"
-                        android:textOff="Sign"
-                        android:id="@+id/objType"
-                        android:layout_row="0"
-                        android:layout_column="1"
-                        android:checked="true" />
 
                     <Switch
                         android:layout_width="wrap_content"
@@ -106,9 +109,18 @@
                     <Switch
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:text="MRP"
+                        android:id="@+id/switchLaneMorph"
+                        android:layout_row="4"
+                        android:layout_column="0"
+                        android:checked="false" />
+
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="ERD"
                         android:id="@+id/switchErd"
-                        android:layout_row="3"
+                        android:layout_row="4"
                         android:layout_column="1"
                         android:checked="false" />
 
@@ -116,15 +128,24 @@
                         android:layout_width="100dp"
                         android:layout_height="30dp"
                         android:id="@+id/seekBarCtrMin"
-                        android:layout_row="3"
+                        android:layout_row="4"
                         android:layout_column="2" />
+
+                    <Switch
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Track"
+                        android:id="@+id/switchTrack"
+                        android:layout_row="5"
+                        android:layout_column="0"
+                        android:checked="false" />
 
                     <Switch
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="CTR"
                         android:id="@+id/switchCtr"
-                        android:layout_row="4"
+                        android:layout_row="5"
                         android:layout_column="1"
                         android:checked="false" />
 
@@ -132,15 +153,23 @@
                         android:layout_width="100dp"
                         android:layout_height="30dp"
                         android:id="@+id/seekBarCtrMax"
-                        android:layout_row="4"
+                        android:layout_row="5"
                         android:layout_column="2" />
+
+                    <SeekBar
+                        android:layout_width="100dp"
+                        android:layout_height="30dp"
+                        android:id="@+id/seekBarP1"
+                        android:layout_row="6"
+                        android:layout_column="2"
+                        android:max="100" />
 
                     <Switch
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="HUG"
                         android:id="@+id/switchHug"
-                        android:layout_row="5"
+                        android:layout_row="6"
                         android:layout_column="1"
                         android:checked="false" />
 
@@ -168,7 +197,7 @@
                         android:textAppearance="?android:attr/textAppearanceSmall"
                         android:text="0"
                         android:id="@+id/textViewLaneCtrMin"
-                        android:layout_row="3"
+                        android:layout_row="4"
                         android:layout_column="3"
                         android:textAlignment="center" />
                     <TextView
@@ -178,7 +207,17 @@
                         android:textAppearance="?android:attr/textAppearanceSmall"
                         android:text="0"
                         android:id="@+id/textViewLaneCtrMax"
-                        android:layout_row="4"
+                        android:layout_row="5"
+                        android:layout_column="3"
+                        android:textAlignment="center" />
+                    <TextView
+                        android:layout_width="50dp"
+                        android:layout_height="30dp"
+                        android:paddingTop="6dp"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:text="0"
+                        android:id="@+id/textViewP1"
+                        android:layout_row="6"
                         android:layout_column="3"
                         android:textAlignment="center" />
                 </GridLayout>
