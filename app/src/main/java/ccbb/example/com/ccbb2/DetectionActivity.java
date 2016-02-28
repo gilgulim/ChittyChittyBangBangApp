@@ -48,6 +48,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     //sign detection by color
     private Mat mHierarchy;
     private Mat mRgba;
+    private Mat mSignColorRgba;
     private Mat mSignColorThreshold;
     private Mat mHsv;
     private Mat erodeElement;
@@ -103,8 +104,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
+        Thread.setDefaultUncaughtExceptionHandler(new ExceptionHandler());
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.detection_surface_view);
@@ -343,15 +344,17 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mDetectionResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignShapeThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
-        mSignColorThreshold = new Mat(height, width, CvType.CV_8UC4, new Scalar(0));
+        mSignColorThreshold = new Mat();
         laneHoughLines = new Mat();
         signHoughCircles = new Mat();
         mGrayLane = new Mat();
         mGraySign = new Mat();
         mHsv = new Mat();
-
+        mSignColorRgba = new Mat();
+        hsvMin = new Scalar(20,20,20);
+        hsvMax = new Scalar(150,180,120);
         mHierarchy = new Mat();
-        contoursMat = new Mat();
+        contoursMat = new Mat(height, width, CvType.CV_8UC1);
         contoursList = new ArrayList<>();
 
         genericErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
@@ -375,30 +378,28 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         }
 
         if(signColorDetectionOn){
+            //analyzeSignByColor(inputFrame);
             analyzeSignByColor(inputFrame);
         }
-        return mDetectionResult;
+            return mDetectionResult;
     }
 
-    //todo: check if copy.to and all analyzing is applied on the roi or not
-    private void analyzeSignByColor(CvCameraViewFrame inputFrame) {
-
-        mRgba = inputFrame.rgba().submat(signRoi);;
-        mRgba.copyTo(mSignColorThreshold.submat(signRoi));
-
-        Imgproc.cvtColor(mRgba, mRgba, Imgproc.COLOR_RGB2HSV_FULL);
+    private void analyzeSignByColor(CvCameraViewFrame inputFrame){
+        mRgba = inputFrame.rgba();
+        Imgproc.cvtColor(mRgba.submat(signRoi), mHsv, Imgproc.COLOR_RGB2HSV_FULL);
         hsvMin = new Scalar(hMin,sMin,vMin);
-        hsvMax = new Scalar(hMax,sMax, vMax);
-        Core.inRange(mRgba, hsvMin, hsvMax, mRgba);
-        mRgba.copyTo(mSignColorThreshold);
+        hsvMax = new Scalar(hMax,sMax,vMax);
+        Core.inRange(mHsv, hsvMin, hsvMax, mSignColorThreshold);
 
-        Imgproc.erode(mRgba, mRgba, erodeElement);
-        Imgproc.erode(mRgba, mRgba, erodeElement);
-        Imgproc.dilate(mRgba, mRgba, dilateElement);
-        Imgproc.dilate(mRgba, mRgba, dilateElement);
-        mRgba.copyTo(mSignColorThreshold);
+        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, erodeElement);
+        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, erodeElement);
+        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, dilateElement);
+        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, dilateElement);
 
-        trackFilteredObject();
+        mSignColorThreshold.copyTo(contoursMat.submat(signRoi));
+        Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLUE_COLOR);
+        contoursList.clear();
     }
 
     private void analyzeSignByShape(CvCameraViewFrame inputFrame) {
@@ -638,63 +639,12 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         Imgproc.putText(
                 mDetectionResult,
                 action.name(),
-                new Point(40, 40*row),
+                new Point(40, 40 * row),
                 ConfigConstants.DEFAULT_FONT,
                 ConfigConstants.SCALE_SIZE_LARGE,
                 ConfigConstants.GREEN_COLOR,
                 ConfigConstants.THICKNESS_THICK);
     }
-
-    private void trackFilteredObject() {
-        mSignColorThreshold.copyTo(contoursMat);
-        contoursList.clear();
-        Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        findAndDrawCenterMassContour();
-        Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLUE_COLOR);
-    }
-
-    private void findAndDrawCenterMassContour() {
-        for (MatOfPoint contourMOP : contoursList) {
-            if(contourMOP.toArray().length > ConfigConstants.SIGN_DETECTION_BY_COLOR_CONTOUR_SIZE_THRESHOLD){
-                Point centerPoint = getCenterPoint(contourMOP.toArray());
-                Imgproc.rectangle(
-                        mRgba,
-                        new Point(centerPoint.x - 5, centerPoint.y - 5),
-                        new Point(centerPoint.x + 5, centerPoint.y + 5),
-                        ConfigConstants.GREEN_COLOR,
-                        ConfigConstants.THICKNESS_FILL_SHAPE);
-            }
-        }
-    }
-
-    private Point getCenterPoint(Point[] contourMOP) {
-        Point pMin = new Point();
-        Point pMax = new Point();
-        pMin.x = pMax.x = contourMOP[0].x;
-        pMin.y = pMax.y = contourMOP[0].y;
-
-        for (int i = 1; i < contourMOP.length; i++) {
-            if(contourMOP[i].x > pMax.x){
-                pMax.x = contourMOP[i].x;
-            }
-            if(contourMOP[i].y > pMax.y){
-                pMax.y = contourMOP[i].y;
-            }
-            if(contourMOP[i].x < pMin.x){
-                pMin.x = contourMOP[i].x;
-            }
-            if(contourMOP[i].y < pMin.y){
-                pMin.y = contourMOP[i].y;
-            }
-        }
-
-        Point p = new Point();
-        p.x = pMin.x + ((pMax.x - pMin.x) / 2);
-        p.y = pMin.y + ((pMax.y - pMin.y) / 2);
-        Log.i(TAG, "Center:" + p.toString() + ", Max:" + pMax.toString() + ", Min:" + pMin.toString());
-        return p;
-    }
-
 
     @Override
     public boolean onTouch(View view, MotionEvent motionEvent) {
