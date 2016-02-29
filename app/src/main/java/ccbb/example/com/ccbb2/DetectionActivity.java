@@ -1,7 +1,6 @@
 package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -14,7 +13,6 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
-import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -48,12 +46,8 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     //sign detection by color
     private Mat mHierarchy;
     private Mat mRgba;
-    private Mat mSignColorRgba;
     private Mat mSignColorThreshold;
     private Mat mHsv;
-    private Mat erodeElement;
-    private Mat dilateElement;
-    private Mat contoursMat;
     private List<MatOfPoint> contoursList = new ArrayList<>();
     private Scalar hsvMin;
     private Scalar hsvMax;
@@ -74,9 +68,6 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private boolean laneShapeDetectionOn;
     private boolean signShapeDetectionOn;
     private boolean signColorDetectionOn;
-
-
-    private double              laneMean;
 
     private int                 hMin = 0;
     private int                 hMax = 256;
@@ -109,7 +100,6 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.detection_surface_view);
-
 
         mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
@@ -340,7 +330,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         screenWidth = width;
         laneRoi = new Rect(0, height/2, width, height/2);
         signRoi = new Rect(width/2, 0, width/2, height);
-        mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mRgba = new Mat();
         mDetectionResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignShapeThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
@@ -350,25 +340,34 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mGrayLane = new Mat();
         mGraySign = new Mat();
         mHsv = new Mat();
-        mSignColorRgba = new Mat();
         hsvMin = new Scalar(20,20,20);
         hsvMax = new Scalar(150,180,120);
         mHierarchy = new Mat();
-        contoursMat = new Mat(height, width, CvType.CV_8UC1);
         contoursList = new ArrayList<>();
 
         genericErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
-        erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3));
-        dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8));
     }
 
     public void onCameraViewStopped() {
         mRgba.release();
-        //todo: release all matrixes
+        mDetectionResult.release();
+        mLaneThreshold.release();
+        mSignShapeThreshold.release();
+        mSignColorThreshold.release();
+        laneHoughLines.release();
+        signHoughCircles.release();
+        mGrayLane.release();
+        mGraySign.release();
+        mHsv.release();
+        mHierarchy.release();
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
         mDetectionResult = inputFrame.rgba();
+        if(signColorDetectionOn){
+            analyzeSignByColor(inputFrame);
+        }
+
         if(laneShapeDetectionOn){
             analyzeLaneByShape(inputFrame);
         }
@@ -377,28 +376,20 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             analyzeSignByShape(inputFrame);
         }
 
-        if(signColorDetectionOn){
-            //analyzeSignByColor(inputFrame);
-            analyzeSignByColor(inputFrame);
-        }
+
             return mDetectionResult;
     }
 
     private void analyzeSignByColor(CvCameraViewFrame inputFrame){
         mRgba = inputFrame.rgba();
         Imgproc.cvtColor(mRgba.submat(signRoi), mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+
         hsvMin = new Scalar(hMin,sMin,vMin);
         hsvMax = new Scalar(hMax,sMax,vMax);
         Core.inRange(mHsv, hsvMin, hsvMax, mSignColorThreshold);
-
-        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, erodeElement);
-        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, erodeElement);
-        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, dilateElement);
-        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, dilateElement);
-
-        mSignColorThreshold.copyTo(contoursMat.submat(signRoi));
-        Imgproc.findContours(contoursMat, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLUE_COLOR);
+        
+        Imgproc.findContours(mSignColorThreshold, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.drawContours(mDetectionResult.submat(signRoi), contoursList, -1, ConfigConstants.BLUE_COLOR);
         contoursList.clear();
     }
 
@@ -472,7 +463,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         }else{
             printActionToScreen(Action.None, 2);
         }
-
+/*
         //find rectangles
         //todo temp use of contourList & hierarchy
         Imgproc.findContours(mSignShapeThreshold, contoursList,mHierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
@@ -492,6 +483,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
         //Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLACK_COLOR, ConfigConstants.THICKNESS_THICK);
         contoursList.clear();
+*/
     }
 
     private void analyzeLaneByShape(CvCameraViewFrame inputFrame) {
@@ -512,10 +504,10 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
         //perform erode
         Imgproc.erode(mGrayLane, mGrayLane, genericErodeElement);
-        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
+        //mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
 
         //find contours
-        laneMean = Core.mean(inputFrame.gray()).val[0];
+        double laneMean = Core.mean(inputFrame.gray()).val[0];
         Imgproc.Canny(
                 mGrayLane,
                 mGrayLane,
@@ -524,9 +516,6 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
 
         //find lines based on hough algorithm
-        Set<PairOfPoints> leftLines = new TreeSet<>();
-        Set<PairOfPoints> rightLines = new TreeSet<>();
-
         Imgproc.HoughLinesP(
                 mLaneThreshold,
                 laneHoughLines,
@@ -535,6 +524,9 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_THRESHOLD,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_MIN_LINE_SIZE,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_LINE_GAP);
+
+        Set<PairOfPoints> leftLines = new TreeSet<>();
+        Set<PairOfPoints> rightLines = new TreeSet<>();
 
         for (int i = 0; i < laneHoughLines.rows(); i++) {
             for (int x = 0; x < laneHoughLines.cols(); x++) {
