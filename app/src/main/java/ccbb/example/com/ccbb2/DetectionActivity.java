@@ -549,10 +549,11 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                         mopMaxIndex=i;
                     }
                 }
-                int edges = isContourSquare(contoursListSpeedUp.get(mopMaxIndex));
+                int edges = calcNumOfEdges(contoursListSpeedUp.get(mopMaxIndex));
                 printToScreen(Action.SpeedUp.name() + "|Ed-" +
                         edges + "|Sz-" +
-                        contoursListSpeedUp.size(), 2);
+                        + (int)mopMax +
+                        "|Qy" + contoursListSpeedUp.size(), 2);
             }
         }else{
             cycleCounterSpeedUpSign =0;
@@ -577,9 +578,11 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                         mopMaxIndex=i;
                     }
                 }
-                int edges = isContourSquare(contoursListSpeedDown.get(mopMaxIndex));
+                int edges = calcNumOfEdges(contoursListSpeedDown.get(mopMaxIndex));
                 printToScreen(Action.SpeedDown.name() + "|Ed-" +
                         edges + "|Sz-" +
+                        + (int)mopMax +
+                        "|Qy"  +
                         contoursListSpeedDown.size(), 3);
             }
         }else{
@@ -605,9 +608,11 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                         mopMaxIndex=i;
                     }
                 }
-                int edges = isContourSquare(contoursListStop.get(mopMaxIndex));
+                int edges = calcNumOfEdges(contoursListStop.get(mopMaxIndex));
                 printToScreen(Action.Stop.name() + "|Ed-" +
                         edges + "|Sz-" +
+                        + (int)mopMax +
+                        "|Qy"  +
                         contoursListStop.size(), 4);
             }
         }else{
@@ -619,8 +624,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
         contoursListStop.clear();
     }
 
-    public int isContourSquare(MatOfPoint thisContour) {
-
+    public int calcNumOfEdges(MatOfPoint thisContour) {
         Rect ret = null;
 
         MatOfPoint2f thisContour2f = new MatOfPoint2f();
@@ -629,7 +633,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
 
         thisContour.convertTo(thisContour2f, CvType.CV_32FC2);
 
-        Imgproc.approxPolyDP(thisContour2f, approxContour2f, 2, true);
+        Imgproc.approxPolyDP(thisContour2f, approxContour2f, Imgproc.arcLength(thisContour2f,true)*0.02, true);
 
         approxContour2f.convertTo(approxContour, CvType.CV_32S);
 
@@ -838,18 +842,18 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
             if(Math.abs(centerPoint.x - screenWidth/2) > ConfigConstants.LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD && centerPoint.x != 0){
                 if(centerPoint.x > screenWidth/2){
                     //should turn right
-                    printToScreen(Action.TurnRight.name()+"|Sz-"+(rightLines.size()+leftLines.size()));
+                    printToScreen(Action.TurnRight.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }else{
                     //should turn left
-                    printToScreen(Action.TurnLeft.name()+"|Sz-"+(rightLines.size()+leftLines.size()));
+                    printToScreen(Action.TurnLeft.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }
             }else{
                 //strait line
-                printToScreen(Action.Forward.name()+"|Sz-"+(rightLines.size()+leftLines.size()));
+                printToScreen(Action.Forward.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
                 Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
             }
