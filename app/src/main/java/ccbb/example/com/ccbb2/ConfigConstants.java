@@ -6,6 +6,10 @@ import org.opencv.core.Scalar;
  * Created by gil on 24/02/2016.
  */
 public class ConfigConstants {
+    public static final int COUNTER_MAX_CYCLES = 5;
+
+    public static final long DELTA_TIME_MILLIS = 1000;
+
     public static final Scalar RED_COLOR = new Scalar(255, 0, 0);
     public static final Scalar GREEN_COLOR = new Scalar(0, 255, 0);
     public static final Scalar BLUE_COLOR = new Scalar(0, 0, 255);
@@ -48,7 +52,7 @@ public class ConfigConstants {
     public static final double LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_THETA = Math.PI / 180;
     public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_THRESHOLD = 50;
     public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_MIN_LINE_SIZE = 50;
-    public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_LINE_GAP = 20;
+    public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_LINE_GAP = 15;
 
     public static final int LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD =40;
 

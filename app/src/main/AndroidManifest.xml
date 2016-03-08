@@ -48,7 +48,8 @@
         </activity>
         <activity
             android:name=".BTActivity"
-            android:label="@string/title_activity_bt" >
+            android:label="@string/title_activity_bt"
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

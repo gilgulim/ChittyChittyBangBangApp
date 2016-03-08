@@ -39,7 +39,7 @@
         android:id="@+id/Forward"
         android:layout_alignLeft="@+id/buttonConnect"
         android:layout_alignStart="@+id/buttonConnect"
-        android:layout_marginTop="100dp"
+        android:layout_marginTop="20dp"
         android:layout_below="@+id/switchLed" />
 
     <Button
@@ -50,14 +50,14 @@
         android:layout_below="@+id/Left"
         android:layout_alignRight="@+id/buttonConnect"
         android:layout_alignEnd="@+id/buttonConnect"
-        android:layout_marginTop="44dp" />
+        android:layout_marginTop="12dp" />
 
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Right"
         android:id="@+id/Right"
-        android:layout_marginTop="26dp"
+        android:layout_marginTop="12dp"
         android:layout_below="@+id/Forward"
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true" />

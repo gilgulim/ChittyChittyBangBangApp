@@ -1,7 +1,9 @@
 package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -13,6 +15,7 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -25,22 +28,25 @@ import org.squirrelframework.foundation.fsm.UntypedStateMachine;
 import android.app.Activity;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.MotionEvent;
+import android.util.Pair;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.View.OnTouchListener;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import ccbb.example.com.ccbb2.dataobjects.Circle;
 import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
+import ccbb.example.com.ccbb2.detection.AsyncDetectionResponse;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
 
-public class DetectionActivity extends Activity implements OnTouchListener, CvCameraViewListener2 {
+public class DetectionActivity extends Activity implements CvCameraViewListener2, AsyncDetectionResponse {
     private static final String  TAG = "CCBB::";
 
     //sign detection by color
@@ -48,9 +54,18 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat mRgba;
     private Mat mSignColorThreshold;
     private Mat mHsv;
-    private List<MatOfPoint> contoursList = new ArrayList<>();
+    private MatOfPoint2f contoursListf;
+    private List<MatOfPoint> contoursList;
+    private List<MatOfPoint> contoursListSpeedUp;
+    private List<MatOfPoint> contoursListSpeedDown;
+    private List<MatOfPoint> contoursListStop;
     private Scalar hsvMin;
     private Scalar hsvMax;
+    private Map<String, List<Integer>> contourMeanSizes;
+    private int cycleCounterStopSign;
+    private int cycleCounterSpeedUpSign;
+    private int cycleCounterSpeedDownSign;
+    private long currentTimeMillis;
 
     //lane detection by shape
     private Mat mGrayLane;
@@ -61,13 +76,16 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private Mat mGraySign;
     private Mat mSignShapeThreshold;
     private Mat signHoughCircles;
+    private Circle meanCircleResult;
 
     //generic
+    private Mat mCalibration;
     private Mat mDetectionResult;
     private Mat genericErodeElement;
     private boolean laneShapeDetectionOn;
     private boolean signShapeDetectionOn;
     private boolean signColorDetectionOn;
+    private boolean hsvThresholdOn;
 
     private int                 hMin = 0;
     private int                 hMax = 256;
@@ -75,6 +93,9 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
     private int                 sMax = 256;
     private int                 vMin = 0;
     private int                 vMax = 256;
+    private Pair<Scalar, Scalar> stopSignHsvPair;
+    private Pair<Scalar, Scalar> speedUpSignHsvPair;
+    private Pair<Scalar, Scalar> speedDownSignHsvPair;
     private int                 screenWidth;
     private int                 screenHeight;
 
@@ -143,8 +164,70 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         textViewSignVMax.setText("VMax " + vMax);
 
         initToggleButtons();
-
         initHsvSeekBars(textViewSignHMin, textViewSignHMax, textViewSignSMin, textViewSignSMax, textViewSignVMin, textViewSignVMax);
+        initHsvThresholds();
+
+    }
+
+    private void initHsvThresholds() {
+        final Button speedUpButton = (Button) findViewById(R.id.buttonSpeedUp);
+        speedUpButton.setOnClickListener(new Button.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                speedUpSignHsvPair = new Pair<>(new Scalar(hMin, sMin, vMin), new Scalar(hMax, sMax, vMax));
+                Toast.makeText(getApplicationContext(),
+                        "HSV SpeedUp Set:{(" +
+                                (int) speedUpSignHsvPair.first.val[0] + "," +
+                                (int) speedUpSignHsvPair.first.val[1] + "," +
+                                (int) speedUpSignHsvPair.first.val[2] + "),(" +
+                                (int) speedUpSignHsvPair.second.val[0] + "," +
+                                (int) speedUpSignHsvPair.second.val[1] + "," +
+                                (int) speedUpSignHsvPair.second.val[2] + ")}"
+                        , Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        final Button speedDownButton = (Button) findViewById(R.id.buttonSpeedDown);
+        speedDownButton.setOnClickListener(new Button.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                speedDownSignHsvPair = new Pair<>(new Scalar(hMin, sMin, vMin), new Scalar(hMax, sMax, vMax));
+                Toast.makeText(getApplicationContext(),
+                        "HSV SpeedDown Set:{" +
+                                (int) speedDownSignHsvPair.first.val[0] + "," +
+                                (int) speedDownSignHsvPair.first.val[1] + "," +
+                                (int) speedDownSignHsvPair.first.val[2] + "),(" +
+                                (int) speedDownSignHsvPair.second.val[0] + "," +
+                                (int) speedDownSignHsvPair.second.val[1] + "," +
+                                (int) speedDownSignHsvPair.second.val[2] + ")}"
+                        , Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        final Button stopButton = (Button) findViewById(R.id.buttonStop);
+        stopButton.setOnClickListener(new Button.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                stopSignHsvPair = new Pair<>(new Scalar(hMin, sMin, vMin), new Scalar(hMax, sMax, vMax));
+                Toast.makeText(getApplicationContext(),
+                        "HSV Stop Set:{" +
+                                (int) stopSignHsvPair.first.val[0] + "," +
+                                (int) stopSignHsvPair.first.val[1] + "," +
+                                (int) stopSignHsvPair.first.val[2] + "),(" +
+                                (int) stopSignHsvPair.second.val[0] + "," +
+                                (int) stopSignHsvPair.second.val[1] + "," +
+                                (int) stopSignHsvPair.second.val[2] + ")}"
+                        , Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        final Switch hsvThdSwitch = (Switch) findViewById(R.id.switchHsvThreshold);
+        hsvThdSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                hsvThresholdOn = b;
+            }
+        });
     }
 
     private void initToggleButtons() {
@@ -334,6 +417,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mDetectionResult = new Mat(height, width, CvType.CV_8UC4);
         mLaneThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignShapeThreshold = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
+        mCalibration = new Mat(height, width, CvType.CV_8UC1, new Scalar(0));
         mSignColorThreshold = new Mat();
         laneHoughLines = new Mat();
         signHoughCircles = new Mat();
@@ -343,9 +427,18 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         hsvMin = new Scalar(20,20,20);
         hsvMax = new Scalar(150,180,120);
         mHierarchy = new Mat();
+        contoursListf = new MatOfPoint2f();
         contoursList = new ArrayList<>();
+        contoursListSpeedUp = new ArrayList<>();
+        contoursListSpeedDown = new ArrayList<>();
+        contoursListStop = new ArrayList<>();
 
+        stopSignHsvPair = new Pair<>(new Scalar(164, 170, 109), new Scalar(255, 255, 255));
+        speedUpSignHsvPair = new Pair<>(new Scalar(94, 148, 57), new Scalar(114, 255, 255));
+        speedDownSignHsvPair = new Pair<>(new Scalar(27, 138, 149), new Scalar(57, 255, 255));
         genericErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
+        contourMeanSizes = new HashMap<>();
+        currentTimeMillis = System.currentTimeMillis();
     }
 
     public void onCameraViewStopped() {
@@ -353,6 +446,7 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         mDetectionResult.release();
         mLaneThreshold.release();
         mSignShapeThreshold.release();
+        mCalibration.release();
         mSignColorThreshold.release();
         laneHoughLines.release();
         signHoughCircles.release();
@@ -364,33 +458,184 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
         mDetectionResult = inputFrame.rgba();
-        if(signColorDetectionOn){
-            analyzeSignByColor(inputFrame);
+        //calibration
+        if(hsvThresholdOn){
+            calibrateHsvValues(inputFrame);
+            return mCalibration;
+        }else{
+            if(signColorDetectionOn){
+                analyzeSignByColor(inputFrame);
+            }
+
+            if(laneShapeDetectionOn){
+                analyzeLaneByShape(inputFrame);
+            }
+
+            if(signShapeDetectionOn) {
+//                Integer i = 0;
+//                Log.i(TAG, "INDEX:" + i);
+//                new LaneDetection(inputFrame).execute();
+//                Log.i(TAG, "INDEX:" + i);
+                analyzeSignByShape(inputFrame);
+            }
+
+            if(signColorDetectionOn && signShapeDetectionOn){
+                calculateSignResults();
+            }
         }
-
-        if(laneShapeDetectionOn){
-            analyzeLaneByShape(inputFrame);
-        }
-
-        if(signShapeDetectionOn) {
-            analyzeSignByShape(inputFrame);
-        }
-
-
             return mDetectionResult;
     }
 
-    private void analyzeSignByColor(CvCameraViewFrame inputFrame){
+    private long getElapsedTime(){
+        return System.currentTimeMillis() - currentTimeMillis;
+    }
+
+    private void calculateSignResults(){
+        Action action = getSignDetectionAction();
+        if (action != null){
+            printToScreen(action.name(), 3);
+        }
+        contoursListSpeedDown.clear();
+        contoursListSpeedUp.clear();
+        contoursListStop.clear();
+    }
+
+    private Action getSignDetectionAction() {
+        if(meanCircleResult != null){
+            for (MatOfPoint element : contoursListSpeedUp) {
+                element.convertTo(contoursListf, CvType.CV_32F);
+                if(Imgproc.pointPolygonTest(contoursListf, meanCircleResult.getCenter(), false)> 0){
+                    return Action.SpeedUp;
+                }
+            }
+            meanCircleResult = null;
+        }
+        return null;
+    }
+    private void calibrateHsvValues(CvCameraViewFrame inputFrame){
         mRgba = inputFrame.rgba();
         Imgproc.cvtColor(mRgba.submat(signRoi), mHsv, Imgproc.COLOR_RGB2HSV_FULL);
 
-        hsvMin = new Scalar(hMin,sMin,vMin);
-        hsvMax = new Scalar(hMax,sMax,vMax);
-        Core.inRange(mHsv, hsvMin, hsvMax, mSignColorThreshold);
-        
-        Imgproc.findContours(mSignColorThreshold, contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        Imgproc.drawContours(mDetectionResult.submat(signRoi), contoursList, -1, ConfigConstants.BLUE_COLOR);
+        hsvMin = new Scalar(hMin, sMin, vMin);
+        hsvMax = new Scalar(hMax, sMax, sMax);
+        Core.inRange(mHsv, hsvMin, hsvMax, mCalibration.submat(signRoi));
+        Imgproc.erode(mCalibration.submat(signRoi), mCalibration.submat(signRoi), Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3)));
+        Imgproc.dilate(mCalibration.submat(signRoi), mCalibration.submat(signRoi), Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8)));
+//        Imgproc.findContours(mCalibration.submat(signRoi), contoursList, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+//        Imgproc.drawContours(mDetectionResult.submat(signRoi), contoursList, -1, ConfigConstants.BLUE_COLOR);
+
         contoursList.clear();
+    }
+
+    private void analyzeSignByColor(CvCameraViewFrame inputFrame) {
+        mRgba = inputFrame.rgba();
+
+        Imgproc.cvtColor(mRgba.submat(signRoi), mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+        Core.inRange(mHsv, speedUpSignHsvPair.first, speedUpSignHsvPair.second, mSignColorThreshold);
+        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3)));
+        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8)));
+        Imgproc.findContours(mSignColorThreshold, contoursListSpeedUp, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.drawContours(mDetectionResult.submat(signRoi), contoursListSpeedUp, -1, ConfigConstants.BLUE_COLOR);
+
+        if(contoursListSpeedUp.size() > 0){
+            cycleCounterSpeedUpSign++;
+            if(cycleCounterSpeedUpSign >ConfigConstants.COUNTER_MAX_CYCLES){
+                double mopMax=0;
+                int mopMaxIndex=0;
+                for (int i=0; i < contoursListSpeedUp.size(); i++) {
+                    double area = Imgproc.contourArea(contoursListSpeedUp.get(i));
+                    if(area > mopMax){
+                        mopMax = area;
+                        mopMaxIndex=i;
+                    }
+                }
+                int edges = isContourSquare(contoursListSpeedUp.get(mopMaxIndex));
+                printToScreen(Action.SpeedUp.name() + "|Ed-" +
+                        edges + "|Sz-" +
+                        contoursListSpeedUp.size(), 2);
+            }
+        }else{
+            cycleCounterSpeedUpSign =0;
+        }
+
+        Imgproc.cvtColor(mRgba.submat(signRoi), mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+        Core.inRange(mHsv, speedDownSignHsvPair.first, speedDownSignHsvPair.second, mSignColorThreshold);
+        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3)));
+        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8)));
+        Imgproc.findContours(mSignColorThreshold, contoursListSpeedDown, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.drawContours(mDetectionResult.submat(signRoi), contoursListSpeedDown, -1, ConfigConstants.GREEN_COLOR);
+
+        if(contoursListSpeedDown.size() > 0){
+            cycleCounterSpeedDownSign++;
+            if(cycleCounterSpeedDownSign >ConfigConstants.COUNTER_MAX_CYCLES){
+                double mopMax=0;
+                int mopMaxIndex=0;
+                for (int i=0; i < contoursListSpeedDown.size(); i++) {
+                    double area = Imgproc.contourArea(contoursListSpeedDown.get(i));
+                    if(area > mopMax){
+                        mopMax = area;
+                        mopMaxIndex=i;
+                    }
+                }
+                int edges = isContourSquare(contoursListSpeedDown.get(mopMaxIndex));
+                printToScreen(Action.SpeedDown.name() + "|Ed-" +
+                        edges + "|Sz-" +
+                        contoursListSpeedDown.size(), 3);
+            }
+        }else{
+            cycleCounterSpeedDownSign = 0;
+        }
+
+        Imgproc.cvtColor(mRgba.submat(signRoi), mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+        Core.inRange(mHsv, stopSignHsvPair.first, stopSignHsvPair.second, mSignColorThreshold);
+        Imgproc.erode(mSignColorThreshold, mSignColorThreshold, Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3, 3)));
+        Imgproc.dilate(mSignColorThreshold, mSignColorThreshold, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(8, 8)));
+        Imgproc.findContours(mSignColorThreshold, contoursListStop, mHierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.drawContours(mDetectionResult.submat(signRoi), contoursListStop, -1, ConfigConstants.RED_COLOR);
+
+        if(contoursListStop.size() > 0){
+            cycleCounterStopSign++;
+            if(cycleCounterStopSign >ConfigConstants.COUNTER_MAX_CYCLES){
+                double mopMax=0;
+                int mopMaxIndex=0;
+                for (int i=0; i < contoursListStop.size(); i++) {
+                    double area = Imgproc.contourArea(contoursListStop.get(i));
+                    if(area > mopMax){
+                        mopMax = area;
+                        mopMaxIndex=i;
+                    }
+                }
+                int edges = isContourSquare(contoursListStop.get(mopMaxIndex));
+                printToScreen(Action.Stop.name() + "|Ed-" +
+                        edges + "|Sz-" +
+                        contoursListStop.size(), 4);
+            }
+        }else{
+            cycleCounterStopSign =0;
+        }
+
+        contoursListSpeedDown.clear();
+        contoursListSpeedUp.clear();
+        contoursListStop.clear();
+    }
+
+    public int isContourSquare(MatOfPoint thisContour) {
+
+        Rect ret = null;
+
+        MatOfPoint2f thisContour2f = new MatOfPoint2f();
+        MatOfPoint approxContour = new MatOfPoint();
+        MatOfPoint2f approxContour2f = new MatOfPoint2f();
+
+        thisContour.convertTo(thisContour2f, CvType.CV_32FC2);
+
+        Imgproc.approxPolyDP(thisContour2f, approxContour2f, 2, true);
+
+        approxContour2f.convertTo(approxContour, CvType.CV_32S);
+
+            ret = Imgproc.boundingRect(approxContour);
+
+        return ret != null? (int)approxContour.size().height : -1;
     }
 
     private void analyzeSignByShape(CvCameraViewFrame inputFrame) {
@@ -455,21 +700,22 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             meanX = meanX/circleSet.size();
             meanY = meanY/circleSet.size();
             meanR = meanR/circleSet.size();
-
+            meanCircleResult = new Circle(meanR, new Point(meanX, meanY));
             Imgproc.circle(mDetectionResult, new Point(meanX, meanY), meanR+20, ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
             Imgproc.rectangle(mDetectionResult, new Point(meanX - 5, meanY - 5),
                     new Point(meanX + 5, meanY + 5),
                     ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_FILL_SHAPE);
         }else{
-            printActionToScreen(Action.None, 2);
+            meanCircleResult = null;
+            printToScreen(Action.None.name(), 2);
         }
 /*
         //find rectangles
         //todo temp use of contourList & hierarchy
-        Imgproc.findContours(mSignShapeThreshold, contoursList,mHierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(mSignShapeThreshold, contoursListSpeedUp,mHierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
         MatOfPoint2f approxMop2f  = new MatOfPoint2f();
         MatOfPoint2f conMop2f;
-        for (MatOfPoint con : contoursList) {
+        for (MatOfPoint con : contoursListSpeedUp) {
             conMop2f  = new MatOfPoint2f(con.toArray());
             Imgproc.approxPolyDP(conMop2f, approxMop2f, Imgproc.arcLength(conMop2f, true) * 0.02, true);
             if(Imgproc.contourArea(con) < 100 || Imgproc.isContourConvex(new MatOfPoint(approxMop2f.toArray()))){
@@ -481,15 +727,14 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             //}
         }
 
-        //Imgproc.drawContours(mDetectionResult, contoursList, -1, ConfigConstants.BLACK_COLOR, ConfigConstants.THICKNESS_THICK);
-        contoursList.clear();
+        //Imgproc.drawContours(mDetectionResult, contoursListSpeedUp, -1, ConfigConstants.BLACK_COLOR, ConfigConstants.THICKNESS_THICK);
+        contoursListSpeedUp.clear();
 */
     }
 
     private void analyzeLaneByShape(CvCameraViewFrame inputFrame) {
         //extract ROI
         mGrayLane = inputFrame.gray().submat(laneRoi);
-        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
 
         //perform adaptive threshold
         Imgproc.adaptiveThreshold(
@@ -500,11 +745,9 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
                 Imgproc.THRESH_BINARY,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_THRESHOLD_BLOCK_SIZE,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_THRESHOLD_C);
-        mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
 
         //perform erode
         Imgproc.erode(mGrayLane, mGrayLane, genericErodeElement);
-        //mGrayLane.copyTo(mLaneThreshold.submat(laneRoi));
 
         //find contours
         double laneMean = Core.mean(inputFrame.gray()).val[0];
@@ -595,18 +838,18 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
             if(Math.abs(centerPoint.x - screenWidth/2) > ConfigConstants.LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD && centerPoint.x != 0){
                 if(centerPoint.x > screenWidth/2){
                     //should turn right
-                    printActionToScreen(Action.TurnRight);
+                    printToScreen(Action.TurnRight.name()+"|Sz-"+(rightLines.size()+leftLines.size()));
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }else{
                     //should turn left
-                    printActionToScreen(Action.TurnLeft);
+                    printToScreen(Action.TurnLeft.name()+"|Sz-"+(rightLines.size()+leftLines.size()));
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }
             }else{
                 //strait line
-                printActionToScreen(Action.Forward);
+                printToScreen(Action.Forward.name()+"|Sz-"+(rightLines.size()+leftLines.size()));
                 Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
             }
@@ -623,23 +866,23 @@ public class DetectionActivity extends Activity implements OnTouchListener, CvCa
         return new Point(xi,yi);
     }
 
-    private void printActionToScreen(Action action){
-        printActionToScreen(action, 1);
+    private void printToScreen(String str){
+        printToScreen(str, 1);
     }
 
-    private void printActionToScreen(Action action, int row){
+    private void printToScreen(String str, int row){
         Imgproc.putText(
                 mDetectionResult,
-                action.name(),
+                str,
                 new Point(40, 40 * row),
                 ConfigConstants.DEFAULT_FONT,
-                ConfigConstants.SCALE_SIZE_LARGE,
+                ConfigConstants.SCALE_SIZE_MEDIUM,
                 ConfigConstants.GREEN_COLOR,
                 ConfigConstants.THICKNESS_THICK);
     }
 
     @Override
-    public boolean onTouch(View view, MotionEvent motionEvent) {
-        return false;
+    public void processFinish(Mat result) {
+
     }
 }
