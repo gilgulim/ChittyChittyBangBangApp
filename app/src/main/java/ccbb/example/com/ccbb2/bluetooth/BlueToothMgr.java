@@ -14,6 +14,7 @@ import java.util.UUID;
  * Created by gil on 17/02/2016.
  */
 public class BlueToothMgr {
+    private static BlueToothMgr blueToothMgr = new BlueToothMgr();
     private static final String TAG = "BTMgr:";
     private BluetoothDevice btDevice;
     private BluetoothAdapter mBluetoothAdapter = null;
@@ -23,8 +24,15 @@ public class BlueToothMgr {
     private static String       address = "98:D3:31:50:22:ED";
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
-    public BlueToothMgr() {
+    private BlueToothMgr() {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+    }
+
+    public static BlueToothMgr getInstance(){
+        return blueToothMgr;
+    }
+    public boolean isConnected(){
+        return btSocket.isConnected();
     }
 
     public boolean connect() {

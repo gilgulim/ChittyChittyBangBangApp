@@ -10,7 +10,7 @@ public enum Action {
     Stop(4),
     Wait(5),
     SpeedUp(6, "1"),
-    SpeedDown(7, "-1"),
+    SpeedDown(7, "2"),
     None(8, "0");
 
     private int id;

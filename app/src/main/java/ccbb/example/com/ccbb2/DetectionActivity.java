@@ -45,6 +45,7 @@ import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
 import ccbb.example.com.ccbb2.detection.AsyncDetectionResponse;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
+import ccbb.example.com.ccbb2.fsm.FsmManager;
 
 public class DetectionActivity extends Activity implements CvCameraViewListener2, AsyncDetectionResponse {
     private static final String  TAG = "CCBB::";
@@ -146,7 +147,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
         initComponents();
         carDecisionFsm = new CarDecisionFsm();
         fsm = carDecisionFsm.getBuilder().newStateMachine(Action.Forward);
-        //fsm.fire(FsmManager.FSMEvent.ToA, Action.None);
     }
 
     private void initComponents() {
@@ -888,5 +888,32 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     @Override
     public void processFinish(Mat result) {
 
+    }
+
+    private void changeState(Action action){
+        switch (action){
+            case Forward:
+                fsm.fire(FsmManager.FSMEvent.ToA);
+                break;
+            case TurnLeft:
+                fsm.fire(FsmManager.FSMEvent.ToB);
+                break;
+            case TurnRight:
+                fsm.fire(FsmManager.FSMEvent.ToC);
+                break;
+            case Stop:
+                fsm.fire(FsmManager.FSMEvent.ToD);
+                break;
+            case Wait:
+                fsm.fire(FsmManager.FSMEvent.ToE);
+                break;
+        }
+        /*
+            ToA("o={1, 2, 4};l={0}", "a"),   //o={1, 2, 4};l={0} Forward
+            ToB("o={1, 2, 4};l={1}", "b"),   //o={1, 2, 4};l={1} Left
+            ToC("o={1, 2, 4};l={2}", "c"),   //o={1, 2, 4};l={2} Right
+            ToD("o={3};l={*}", "d"),         //o={3};l={*}       Stop
+            ToE("o={0};l={*}", "e");         //o={0};l={*}       Wait
+         */
     }
 }
