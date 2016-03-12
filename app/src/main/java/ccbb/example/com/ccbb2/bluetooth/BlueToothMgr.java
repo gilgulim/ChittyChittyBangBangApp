@@ -21,7 +21,7 @@ public class BlueToothMgr {
     private BluetoothSocket btSocket = null;
     private OutputStream outStream = null;
     private InputStream inStream = null;
-    private static String       address = "98:D3:31:50:22:ED";
+    private static final String address = "98:D3:31:50:22:ED";
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     private BlueToothMgr() {
@@ -33,6 +33,14 @@ public class BlueToothMgr {
     }
     public boolean isConnected(){
         return btSocket.isConnected();
+    }
+
+    public void disconnect() {
+        try {
+            btSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public boolean connect() {

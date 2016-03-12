@@ -46,7 +46,7 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Backward"
+        android:text="Stop"
         android:id="@+id/Backward"
         android:layout_below="@+id/Left"
         android:layout_alignRight="@+id/Forward"
@@ -71,5 +71,17 @@
         android:layout_alignTop="@+id/Right"
         android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true" />
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Connect BT"
+        android:id="@+id/switch1"
+        android:layout_alignBottom="@+id/buttonIR"
+        android:layout_toRightOf="@+id/buttonIR"
+        android:layout_toEndOf="@+id/buttonIR"
+        android:layout_marginLeft="53dp"
+        android:layout_marginStart="53dp"
+        android:checked="false" />
 
 </RelativeLayout>

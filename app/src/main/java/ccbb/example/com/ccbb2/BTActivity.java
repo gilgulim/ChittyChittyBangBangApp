@@ -6,13 +6,16 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.Switch;
+import android.widget.Toast;
 
 import ccbb.example.com.ccbb2.bluetooth.BlueToothMgr;
 
 
 public class BTActivity extends Activity implements View.OnClickListener{
 
+    private Switch              connectBT;
     private Button              switchToIR;
     private Button              btnSpeedUp;
     private Button              btnSpeedDown;
@@ -28,18 +31,41 @@ public class BTActivity extends Activity implements View.OnClickListener{
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bt);
-        blueToothMgr = BlueToothMgr.getInstance();
+
         initComponents();
     }
 
     private void initComponents() {
+        connectBT = (Switch) findViewById(R.id.switch1);
+        connectBT.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                try{
+                    if(b){
+                        blueToothMgr = BlueToothMgr.getInstance();
+                        blueToothMgr.connect();
+                        if(blueToothMgr.isConnected()){
+                            Toast.makeText(getApplicationContext(), "BlueTooth connected!", Toast.LENGTH_SHORT).show();
+                        }else{
+                            Toast.makeText(getApplicationContext(), "BlueTooth NOT connected!", Toast.LENGTH_SHORT).show();
+                        }
+                    }else{
+                        blueToothMgr.disconnect();
+                    }
+                }catch (Exception ex){
+                    connectBT.setChecked(false);
+                    Log.e(TAG, "Error connecting to BT device", ex);
+                }
+
+            }
+        });
         switchToIR = (Button)findViewById(R.id.buttonIR);
         switchToIR.setOnClickListener(this);
 
-        btnSpeedUp = (Button)findViewById(R.id.buttonSpeedUp);
+        btnSpeedUp = (Button)findViewById(R.id.SpeedUp);
         btnSpeedUp.setOnClickListener(this);
 
-        btnSpeedDown = (Button) findViewById(R.id.buttonSpeedDown);
+        btnSpeedDown = (Button) findViewById(R.id.SpeedDown);
         btnSpeedDown.setOnClickListener(this);
 
         btnForward = (Button) findViewById(R.id.Forward);
@@ -74,6 +100,9 @@ public class BTActivity extends Activity implements View.OnClickListener{
             case R.id.Right:
                 writeData("c");
                 break;
+            case R.id.Backward:
+                writeData("d");
+                break;
             case R.id.SpeedDown:
                 writeData("2");
                 break;
@@ -84,11 +113,18 @@ public class BTActivity extends Activity implements View.OnClickListener{
     }
 
     private void writeData(String data) {
-        if(!blueToothMgr.isConnected()){
-            blueToothMgr.connect();
+        if(connectBT.isChecked()){
+            if(!blueToothMgr.isConnected()){
+                blueToothMgr.connect();
+            }
+            if(!blueToothMgr.sendMsgToDevice(data)){
+                Log.i(TAG, "message send FAILED" + data);
+            }else{
+                Log.i(TAG,"message send Successfully " + data);
+            }
+
         }
-        blueToothMgr.sendMsgToDevice(data);
-        Log.i(TAG, "send " + data);
+
     }
 
 }
