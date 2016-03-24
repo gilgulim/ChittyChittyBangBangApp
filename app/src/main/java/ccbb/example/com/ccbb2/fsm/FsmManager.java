@@ -5,7 +5,8 @@ import android.util.Log;
 import org.squirrelframework.foundation.fsm.annotation.StateMachineParameters;
 import org.squirrelframework.foundation.fsm.impl.AbstractUntypedStateMachine;
 
-import ccbb.example.com.ccbb2.bluetooth.BlueToothMgr;
+import ccbb.example.com.ccbb2.BTActivity;
+import ccbb.example.com.ccbb2.DetectionActivity;
 import ccbb.example.com.ccbb2.enums.Action;
 
 /**
@@ -41,23 +42,24 @@ public class FsmManager {
     @StateMachineParameters(stateType = Action.class, eventType = FSMEvent.class, contextType = Action.class)
     static class StateMachine extends AbstractUntypedStateMachine {
 
-        private final BlueToothMgr blueToothMgr;
+        //private final BlueToothMgr blueToothMgr;
 
         public StateMachine() {
-            blueToothMgr = BlueToothMgr.getInstance();
-        }
-
-        public void connect() {
-            if (!blueToothMgr.isConnected()) {
-                blueToothMgr.connect();
-            }
+            //blueToothMgr = BlueToothMgr.getInstance();
         }
 
         protected void fromAToB(Action from, Action to, FSMEvent event, Action speedAction) {
-            connect();
-            blueToothMgr.sendMsgToDevice(event.getSignal());
-            blueToothMgr.sendMsgToDevice(speedAction.getSignal());
-            Log.d(TAG, "Transition from '" + from + "' to '" + to + "' on event '" + event + " " + event.getStateInfo() + "' with context '" + speedAction + "'.");
+            if(event != null){
+                DetectionActivity.mCommandService.write(event.getSignal().getBytes());
+                Log.i(TAG, "Transition from '" + from + "' to '" + to + "' on event '" + event + " " + event.getStateInfo());
+            }
+            if(speedAction != null){
+                DetectionActivity.mCommandService.write(speedAction.getSignal().getBytes());
+                Log.i(TAG, "Transition from '" + from + "' to '" + to + "' with context '" + speedAction + " " + speedAction.getSignal() + "'.");
+            }
+//            blueToothMgr.sendMsgToDevice(event.getSignal());
+//            blueToothMgr.sendMsgToDevice(speedAction.getSignal());
+
         }
     }
 }

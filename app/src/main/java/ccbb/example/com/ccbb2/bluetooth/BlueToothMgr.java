@@ -14,23 +14,23 @@ import java.util.UUID;
  * Created by gil on 17/02/2016.
  */
 public class BlueToothMgr {
-    private static BlueToothMgr blueToothMgr = new BlueToothMgr();
+    //private static BlueToothMgr blueToothMgr = new BlueToothMgr();
     private static final String TAG = "BTMgr:";
     private BluetoothDevice btDevice;
     private BluetoothAdapter mBluetoothAdapter = null;
     private BluetoothSocket btSocket = null;
     private OutputStream outStream = null;
     private InputStream inStream = null;
-    private static final String address = "98:D3:31:50:22:ED";
+    private static final String address = "98:D3:31:40:27:90";
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     private BlueToothMgr() {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     }
 
-    public static BlueToothMgr getInstance(){
-        return blueToothMgr;
-    }
+//    public static BlueToothMgr getInstance(){
+//        return blueToothMgr;
+//    }
     public boolean isConnected(){
         return btSocket.isConnected();
     }
@@ -44,9 +44,10 @@ public class BlueToothMgr {
     }
 
     public boolean connect() {
-        BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
+        btDevice = mBluetoothAdapter.getRemoteDevice(address);
         try {
-            btSocket = device.createRfcommSocketToServiceRecord(MY_UUID);
+//            btSocket = device.createRfcommSocketToServiceRecord(MY_UUID);
+            btSocket = btDevice.createInsecureRfcommSocketToServiceRecord(MY_UUID);
             btSocket.connect();
             Log.d(TAG, "Connection made.");
         } catch (IOException e) {
@@ -71,6 +72,9 @@ public class BlueToothMgr {
         }
 
         try {
+            outStream.write(msg.getBytes());
+            outStream.write(msg.getBytes());
+            outStream.write(msg.getBytes());
             outStream.write(msg.getBytes());
         } catch (Exception e) {
             Log.e(TAG, "error write into output stream",e);

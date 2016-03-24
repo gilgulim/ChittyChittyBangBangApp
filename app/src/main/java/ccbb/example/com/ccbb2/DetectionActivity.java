@@ -26,7 +26,12 @@ import org.opencv.imgproc.Imgproc;
 import org.squirrelframework.foundation.fsm.UntypedStateMachine;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.util.Pair;
 import android.view.View;
@@ -40,16 +45,39 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import ccbb.example.com.ccbb2.bluetooth.BluetoothCommandService;
 import ccbb.example.com.ccbb2.dataobjects.Circle;
 import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
-import ccbb.example.com.ccbb2.detection.AsyncDetectionResponse;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
 import ccbb.example.com.ccbb2.fsm.FsmManager;
 
-public class DetectionActivity extends Activity implements CvCameraViewListener2, AsyncDetectionResponse {
+public class DetectionActivity extends Activity implements CvCameraViewListener2 {
     private static final String  TAG = "CCBB::";
 
+    // Intent request codes
+    private static final int REQUEST_CONNECT_DEVICE = 1;
+    private static final int REQUEST_ENABLE_BT = 2;
+
+    // Message types sent from the BluetoothChatService Handler
+    public static final int MESSAGE_STATE_CHANGE = 1;
+    public static final int MESSAGE_READ = 2;
+    public static final int MESSAGE_WRITE = 3;
+    public static final int MESSAGE_DEVICE_NAME = 4;
+    public static final int MESSAGE_TOAST = 5;
+
+    // Key names received from the BluetoothCommandService Handler
+    public static final String DEVICE_NAME = "device_name";
+    public static final String TOAST = "toast";
+
+    // Name of the connected device
+    private String mConnectedDeviceName = null;
+    // Local Bluetooth adapter
+    private BluetoothAdapter mBluetoothAdapter = null;
+    // Member object for Bluetooth Command Service
+
+    public static  BluetoothCommandService mCommandService = null;
+    private Switch switchConnectBT;
     //sign detection by color
     private Mat mHierarchy;
     private Mat mRgba;
@@ -145,11 +173,37 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
         };
 
         initComponents();
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        // If the adapter is null, then Bluetooth is not supported
+        if (mBluetoothAdapter == null) {
+            Toast.makeText(this, "Bluetooth is not available", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
         carDecisionFsm = new CarDecisionFsm();
+
         fsm = carDecisionFsm.getBuilder().newStateMachine(Action.Forward);
     }
 
     private void initComponents() {
+        switchConnectBT = (Switch) findViewById(R.id.switchDetectionBTConnect);
+        switchConnectBT.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                try {
+                    if (b) {
+                        BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(BluetoothCommandService.address);
+                        // Attempt to connect to the device
+                        mCommandService.connect(device);
+
+                    }
+                } catch (Exception ex) {
+                    switchConnectBT.setChecked(false);
+                    Log.e(TAG, "Error connecting to BT device", ex);
+                }
+            }
+        });
         final TextView textViewSignHMin = (TextView) findViewById(R.id.textViewHMin);
         textViewSignHMin.setText("HMin " + hMin);
         final TextView textViewSignHMax = (TextView) findViewById(R.id.textViewHMax);
@@ -231,6 +285,13 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     }
 
     private void initToggleButtons() {
+        Button stopBTbutton = (Button) findViewById(R.id.buttonDetectionBTStop);
+        stopBTbutton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mCommandService.write("d".getBytes());
+            }
+        });
         ToggleButton laneShapeDetectionToggleButton = (ToggleButton) findViewById(R.id.laneShapeToggleButton);
         laneShapeDetectionToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 
@@ -382,6 +443,61 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+
+        // If BT is not on, request that it be enabled.
+        // setupCommand() will then be called during onActivityResult
+        if (!mBluetoothAdapter.isEnabled()) {
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+        }
+        // otherwise set up the command service
+        else {
+            if (mCommandService==null)
+                setupCommand();
+        }
+    }
+
+    private void setupCommand() {
+        // Initialize the BluetoothChatService to perform bluetooth connections
+        mCommandService = new BluetoothCommandService(this, mHandler);
+    }
+
+    private final Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MESSAGE_STATE_CHANGE:
+                    switch (msg.arg1) {
+                        case BluetoothCommandService.STATE_CONNECTED:
+                            switchConnectBT.setText("connected ");
+                            switchConnectBT.append(mConnectedDeviceName);
+                            break;
+                        case BluetoothCommandService.STATE_CONNECTING:
+                            switchConnectBT.setText("connecting");
+                            break;
+                        case BluetoothCommandService.STATE_LISTEN:
+                        case BluetoothCommandService.STATE_NONE:
+                            switchConnectBT.setText("not connected");
+                            break;
+                    }
+                    break;
+                case MESSAGE_DEVICE_NAME:
+                    // save the connected device's name
+                    mConnectedDeviceName = msg.getData().getString(DEVICE_NAME);
+                    Toast.makeText(getApplicationContext(), "Connected to "
+                            + mConnectedDeviceName, Toast.LENGTH_SHORT).show();
+                    break;
+                case MESSAGE_TOAST:
+                    Toast.makeText(getApplicationContext(), msg.getData().getString(TOAST),
+                            Toast.LENGTH_SHORT).show();
+                    break;
+            }
+        }
+    };
+
+    @Override
     public void onPause()
     {
         super.onPause();
@@ -399,6 +515,11 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
         } else {
             Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
+        if (mCommandService != null) {
+            if (mCommandService.getState() == BluetoothCommandService.STATE_NONE) {
+                mCommandService.start();
+            }
         }
     }
 
@@ -842,17 +963,20 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
             if(Math.abs(centerPoint.x - screenWidth/2) > ConfigConstants.LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD && centerPoint.x != 0){
                 if(centerPoint.x > screenWidth/2){
                     //should turn right
+                    changeState(Action.TurnRight);
                     printToScreen(Action.TurnRight.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }else{
                     //should turn left
+                    changeState(Action.TurnLeft);
                     printToScreen(Action.TurnLeft.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }
             }else{
                 //strait line
+                changeState(Action.Forward);
                 printToScreen(Action.Forward.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
                 Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
@@ -885,10 +1009,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 ConfigConstants.THICKNESS_THICK);
     }
 
-    @Override
-    public void processFinish(Mat result) {
-
-    }
 
     private void changeState(Action action){
         switch (action){
