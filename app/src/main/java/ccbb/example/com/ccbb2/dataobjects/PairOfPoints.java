@@ -35,4 +35,23 @@ public class PairOfPoints implements Comparable<PairOfPoints>{
 
         return (this.ptLow.y > pairOfPoints.ptLow.y ? -1 : 1);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PairOfPoints)) return false;
+
+        PairOfPoints that = (PairOfPoints) o;
+
+        if (!getPtLow().equals(that.getPtLow())) return false;
+        return getPtHigh().equals(that.getPtHigh());
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = getPtLow().hashCode();
+        result = 31 * result + getPtHigh().hashCode();
+        return result;
+    }
 }

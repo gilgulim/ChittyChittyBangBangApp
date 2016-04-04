@@ -1,7 +1,10 @@
 package ccbb.example.com.ccbb2;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,8 +48,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import ccbb.example.com.ccbb2.Helpers.CollectionHelper;
 import ccbb.example.com.ccbb2.bluetooth.BluetoothCommandService;
 import ccbb.example.com.ccbb2.dataobjects.Circle;
+import ccbb.example.com.ccbb2.dataobjects.Line;
 import ccbb.example.com.ccbb2.dataobjects.PairOfPoints;
 import ccbb.example.com.ccbb2.enums.Action;
 import ccbb.example.com.ccbb2.fsm.CarDecisionFsm;
@@ -754,7 +759,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
 
         thisContour.convertTo(thisContour2f, CvType.CV_32FC2);
 
-        Imgproc.approxPolyDP(thisContour2f, approxContour2f, Imgproc.arcLength(thisContour2f,true)*0.02, true);
+        Imgproc.approxPolyDP(thisContour2f, approxContour2f, Imgproc.arcLength(thisContour2f, true) * 0.02, true);
 
         approxContour2f.convertTo(approxContour, CvType.CV_32S);
 
@@ -895,6 +900,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
 
         Set<PairOfPoints> leftLines = new TreeSet<>();
         Set<PairOfPoints> rightLines = new TreeSet<>();
+        Set<Line> lines= new HashSet<>();
 
         for (int i = 0; i < laneHoughLines.rows(); i++) {
             for (int x = 0; x < laneHoughLines.cols(); x++) {
@@ -904,8 +910,8 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                         x2 = vec[2],
                         y2 = vec[3];
 
-                //discard horizontal lines
-                if(Math.abs(y1-y2) < 30){
+                //discard horizontal and vertical lines
+                if(Math.abs(y1-y2) < 30 || Math.abs(x1-x2) < 10){
                     continue;
                 }
 
@@ -919,12 +925,67 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                     end = new Point(x1, y1);
                     start = new Point(x2, y2);
                 }
-                if (x1 > screenWidth/2){
-                    rightLines.add(new PairOfPoints(start, end));
-                }else{
-                    leftLines.add(new PairOfPoints(start, end));
+                //draw all lines to screen
+                // Imgproc.line(mDetectionResult, start, end, ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_THICK);
+
+
+                lines.add(new Line(new PairOfPoints(start, end),(start.y - end.y)/(start.x-end.x)));
+
+//                if (x1 > screenWidth/2){
+//                    rightLines.add(new PairOfPoints(start, end));
+//                }else{
+//                    leftLines.add(new PairOfPoints(start, end));
+//                }
+            }
+        }
+
+        //calc lines gradient
+        double gradient;
+        List<Line> linesList = CollectionHelper.toList(lines);
+        Map<Double, List<Line>> lineGroup = new HashMap<>();
+        for (Line line : linesList) {
+            if(line.isLineGroup()){continue;}
+            gradient = line.getGradient();
+            for (Line innerLine : linesList) {
+                if(line.equals(innerLine)||innerLine.isLineGroup()){continue;}
+                if(Math.abs(gradient - innerLine.getGradient()) < 0.1){
+                    if(!lineGroup.containsKey(gradient)){
+                        lineGroup.put(gradient, new ArrayList<Line>());
+                    }
+                    lineGroup.get(gradient).add(innerLine);
+                    innerLine.setIsLineGroup(true);
                 }
             }
+        }
+
+        List<PairOfPoints> aggLines = new ArrayList<>();
+        int groupSize;
+        double avgPtLowX,avgPtLowY,avgPtHighX,avgPtHighY;
+        for (List<Line> lineGroupList : lineGroup.values()) {
+            groupSize = lineGroupList.size();
+            avgPtLowX=0; avgPtLowY=0; avgPtHighX=0; avgPtHighY=0;
+            for (Line lineGroupElement : lineGroupList) {
+                avgPtLowX+=lineGroupElement.getPoints().getPtLow().x;
+                avgPtLowY+=lineGroupElement.getPoints().getPtLow().y;
+                avgPtHighX+=lineGroupElement.getPoints().getPtHigh().x;
+                avgPtHighY+=lineGroupElement.getPoints().getPtHigh().y;
+            }
+            avgPtLowX /= groupSize;
+            avgPtLowY /= groupSize;
+            avgPtHighX /= groupSize;
+            avgPtHighY /= groupSize;
+            aggLines.add(new PairOfPoints(new Point(avgPtLowX, avgPtLowY), new Point(avgPtHighX, avgPtHighY)));
+        }
+
+
+        for (PairOfPoints aggLine : aggLines) {
+            if (aggLine.getPtHigh().x > screenWidth/2){
+                rightLines.add(aggLine);
+            }else{
+                leftLines.add(aggLine);
+            }
+            //draw agg lines
+            Imgproc.line(mDetectionResult, aggLine.getPtLow(), aggLine.getPtHigh(), ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_THICK);
         }
 
         //filter only the lane lines
@@ -949,8 +1010,9 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                             (int) leftLine.getPtHigh().y);
 
                     //interPoint may be not relevant
-                    if(intersectionPoint != null && intersectionPoint.y <(screenHeight/2)){
-                        if(Math.abs(intersectionPoint.x - screenWidth/2) < Math.abs(centerPoint.x - screenWidth/2)){
+                    if(intersectionPoint != null && intersectionPoint.y <(screenHeight)){//was screenHeight/2 but if turn hard will miss
+                        Imgproc.circle(mDetectionResult, intersectionPoint, 5, ConfigConstants.WHITE_COLOR, ConfigConstants.THICKNESS_THICK);
+                        if(Math.abs(intersectionPoint.x - screenWidth / 2) < Math.abs(centerPoint.x - screenWidth/2)){
                             centerPoint = intersectionPoint;
                             roadRightLane = rightLine;
                             roadLeftLane = leftLine;
@@ -958,26 +1020,39 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                     }
                 }
             }
+            if(rightLines.size()==0 || leftLines.size()==0) {//no lines in one of sides
+                if (rightLines.size() > 0) {
+                    //should turn left
+                    changeState(Action.TurnLeft);
+                    printToScreen(Action.TurnLeft.name() + "|Qy-R" + rightLines.size() + " L" + leftLines.size());
+                    Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
+                    Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
+                } else {
+                    //should turn right
+                    changeState(Action.TurnRight);
+                    printToScreen(Action.TurnRight.name() + "|Qy-R" + rightLines.size() + " L" + leftLines.size());
+                    Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
+                    Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
 
-            //center point may remains 0,0
-            if(Math.abs(centerPoint.x - screenWidth/2) > ConfigConstants.LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD && centerPoint.x != 0){
+                }
+            }else if(Math.abs(centerPoint.x - screenWidth / 2) > ConfigConstants.LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD && centerPoint.x != 0){ //center point may remains 0,0
                 if(centerPoint.x > screenWidth/2){
                     //should turn right
                     changeState(Action.TurnRight);
-                    printToScreen(Action.TurnRight.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
+                    printToScreen(Action.TurnRight.name()+"|Qy-R"+rightLines.size()+ " L" + leftLines.size());
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }else{
                     //should turn left
                     changeState(Action.TurnLeft);
-                    printToScreen(Action.TurnLeft.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
+                    printToScreen(Action.TurnLeft.name()+"|Qy-R"+rightLines.size()+ " L" + leftLines.size());
                     Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                     Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.RED_COLOR, ConfigConstants.THICKNESS_THICKER);
                 }
             }else{
                 //strait line
                 changeState(Action.Forward);
-                printToScreen(Action.Forward.name()+"|Qy-"+(rightLines.size()+leftLines.size()));
+                printToScreen(Action.Forward.name()+"|Qy-R"+rightLines.size()+ " L" + leftLines.size());
                 Imgproc.line(mDetectionResult, roadRightLane.getPtLow(), roadRightLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
                 Imgproc.line(mDetectionResult, roadLeftLane.getPtLow(), roadLeftLane.getPtHigh(), ConfigConstants.GREEN_COLOR, ConfigConstants.THICKNESS_THICKER);
             }
