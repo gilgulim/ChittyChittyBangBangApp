@@ -5,7 +5,6 @@ import android.util.Log;
 import org.squirrelframework.foundation.fsm.annotation.StateMachineParameters;
 import org.squirrelframework.foundation.fsm.impl.AbstractUntypedStateMachine;
 
-import ccbb.example.com.ccbb2.BTActivity;
 import ccbb.example.com.ccbb2.DetectionActivity;
 import ccbb.example.com.ccbb2.enums.Action;
 
@@ -42,11 +41,7 @@ public class FsmManager {
     @StateMachineParameters(stateType = Action.class, eventType = FSMEvent.class, contextType = Action.class)
     static class StateMachine extends AbstractUntypedStateMachine {
 
-        //private final BlueToothMgr blueToothMgr;
-
-        public StateMachine() {
-            //blueToothMgr = BlueToothMgr.getInstance();
-        }
+        public StateMachine() {}
 
         protected void fromAToB(Action from, Action to, FSMEvent event, Action speedAction) {
             if(event != null){
@@ -57,9 +52,6 @@ public class FsmManager {
                 DetectionActivity.mCommandService.write(speedAction.getSignal().getBytes());
                 Log.i(TAG, "Transition from '" + from + "' to '" + to + "' with context '" + speedAction + " " + speedAction.getSignal() + "'.");
             }
-//            blueToothMgr.sendMsgToDevice(event.getSignal());
-//            blueToothMgr.sendMsgToDevice(speedAction.getSignal());
-
         }
     }
 }

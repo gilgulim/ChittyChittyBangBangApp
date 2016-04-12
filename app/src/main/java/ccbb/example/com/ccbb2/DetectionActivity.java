@@ -676,6 +676,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                     }
                 }
                 int edges = calcNumOfEdges(contoursListSpeedUp.get(mopMaxIndex));
+                changeState(Action.None, Action.SpeedUp);
                 printToScreen(Action.SpeedUp.name() + "|Ed-" +
                         edges + "|Sz-" +
                         + (int)mopMax +
@@ -705,6 +706,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                     }
                 }
                 int edges = calcNumOfEdges(contoursListSpeedDown.get(mopMaxIndex));
+                changeState(Action.None, Action.SpeedDown);
                 printToScreen(Action.SpeedDown.name() + "|Ed-" +
                         edges + "|Sz-" +
                         + (int)mopMax +
@@ -735,6 +737,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                     }
                 }
                 int edges = calcNumOfEdges(contoursListStop.get(mopMaxIndex));
+                changeState(Action.Stop);
                 printToScreen(Action.Stop.name() + "|Ed-" +
                         edges + "|Sz-" +
                         + (int)mopMax +
@@ -1084,24 +1087,9 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 ConfigConstants.THICKNESS_THICK);
     }
 
-
-    private void changeState(Action action){
-        switch (action){
-            case Forward:
-                fsm.fire(FsmManager.FSMEvent.ToA);
-                break;
-            case TurnLeft:
-                fsm.fire(FsmManager.FSMEvent.ToB);
-                break;
-            case TurnRight:
-                fsm.fire(FsmManager.FSMEvent.ToC);
-                break;
-            case Stop:
-                fsm.fire(FsmManager.FSMEvent.ToD);
-                break;
-            case Wait:
-                fsm.fire(FsmManager.FSMEvent.ToE);
-                break;
+    private void changeState(Action action, Action speedAction){
+        if(speedAction != null && action.equals(Action.None)){
+            DetectionActivity.mCommandService.write(speedAction.getSignal().getBytes());
         }
         /*
             ToA("o={1, 2, 4};l={0}", "a"),   //o={1, 2, 4};l={0} Forward
@@ -1110,5 +1098,25 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
             ToD("o={3};l={*}", "d"),         //o={3};l={*}       Stop
             ToE("o={0};l={*}", "e");         //o={0};l={*}       Wait
          */
+        switch (action){
+            case Forward:
+                fsm.fire(FsmManager.FSMEvent.ToA, speedAction);
+                break;
+            case TurnLeft:
+                fsm.fire(FsmManager.FSMEvent.ToB, speedAction);
+                break;
+            case TurnRight:
+                fsm.fire(FsmManager.FSMEvent.ToC, speedAction);
+                break;
+            case Stop:
+                fsm.fire(FsmManager.FSMEvent.ToD, speedAction);
+                break;
+            case Wait:
+                fsm.fire(FsmManager.FSMEvent.ToE, speedAction);
+                break;
+        }
+    }
+    private void changeState(Action action){
+        changeState(action, null);
     }
 }
