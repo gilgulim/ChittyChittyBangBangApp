@@ -52,7 +52,7 @@ public class ConfigConstants {
     public static final double LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_THETA = Math.PI / 180;
     public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_THRESHOLD = 50;
     public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_MIN_LINE_SIZE = 50;
-    public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_LINE_GAP = 15;
+    public static final int LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_LINE_GAP = 50;
 
     public static final int LANE_DETECTION_BY_SHAPE_CAR_LANE_DEVIATION_THRESHOLD =40;
 

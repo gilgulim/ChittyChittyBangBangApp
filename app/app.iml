@@ -90,8 +90,8 @@
     <orderEntry type="library" exported="" name="support-annotations-22.2.0" level="project" />
     <orderEntry type="library" exported="" name="squirrel-foundation-0.3.8" level="project" />
     <orderEntry type="library" exported="" name="appcompat-v7-22.2.0" level="project" />
-    <orderEntry type="library" exported="" name="commons-lang3-3.1" level="project" />
     <orderEntry type="library" exported="" name="slf4j-api-1.6.1" level="project" />
+    <orderEntry type="library" exported="" name="commons-lang3-3.1" level="project" />
     <orderEntry type="library" exported="" name="log4j-1.2.16" level="project" />
     <orderEntry type="module" module-name="opencv" exported="" />
   </component>

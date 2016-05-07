@@ -40,9 +40,12 @@ import android.util.Pair;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -116,10 +119,13 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     private Mat mCalibration;
     private Mat mDetectionResult;
     private Mat genericErodeElement;
+    private Mat genericDilateElement;
     private boolean laneShapeDetectionOn;
     private boolean signShapeDetectionOn;
     private boolean signColorDetectionOn;
     private boolean hsvThresholdOn;
+    private Spinner laneOptionSpinner;
+    private String spinnerValue;
 
     private int                 hMin = 0;
     private int                 hMax = 256;
@@ -132,6 +138,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     private Pair<Scalar, Scalar> speedDownSignHsvPair;
     private int                 screenWidth;
     private int                 screenHeight;
+
 
     private Rect laneRoi;
     private Rect signRoi;
@@ -167,7 +174,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                     case LoaderCallbackInterface.SUCCESS:
                     {
                         mOpenCvCameraView.enableView();
-                        //mOpenCvCameraView.setOnTouchListener(DetectionActivity.this);
                     } break;
                     default:
                     {
@@ -179,7 +185,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
 
         initComponents();
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        // If the adapter is null, then Bluetooth is not supported
         if (mBluetoothAdapter == null) {
             Toast.makeText(this, "Bluetooth is not available", Toast.LENGTH_LONG).show();
             finish();
@@ -192,6 +197,21 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     }
 
     private void initComponents() {
+        laneOptionSpinner = (Spinner) findViewById(R.id.spinner);
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_item, getResources()
+                .getStringArray(R.array.laneDetection));
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        laneOptionSpinner.setAdapter(adapter);
+        laneOptionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                spinnerValue = adapterView.getItemAtPosition(i).toString();
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {}
+        } );
+
         switchConnectBT = (Switch) findViewById(R.id.switchDetectionBTConnect);
         switchConnectBT.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -225,7 +245,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
         initToggleButtons();
         initHsvSeekBars(textViewSignHMin, textViewSignHMax, textViewSignSMin, textViewSignSMax, textViewSignVMin, textViewSignVMax);
         initHsvThresholds();
-
     }
 
     private void initHsvThresholds() {
@@ -302,10 +321,13 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
 
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                laneOptionSpinner.setVisibility(isChecked ? View.VISIBLE : View.GONE);
                 laneShapeDetectionOn = isChecked;
             }
-        });
 
+        });
+        laneShapeDetectionToggleButton.setChecked(false);
+        
         ToggleButton signShapeDetectionToggleButton = (ToggleButton) findViewById(R.id.signShapeToggleButton);
         signShapeDetectionToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 
@@ -563,6 +585,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
         speedUpSignHsvPair = new Pair<>(new Scalar(94, 148, 57), new Scalar(114, 255, 255));
         speedDownSignHsvPair = new Pair<>(new Scalar(27, 138, 149), new Scalar(57, 255, 255));
         genericErodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(2, 2));
+        genericDilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2, 2));
         contourMeanSizes = new HashMap<>();
         currentTimeMillis = System.currentTimeMillis();
     }
@@ -609,7 +632,17 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 calculateSignResults();
             }
         }
-            return mDetectionResult;
+        switch(spinnerValue){
+            case "adaptive threshold":
+            case "erode":
+            case "canny contours":
+            case "hough lines":
+                return mLaneThreshold;
+            case "result":
+            default:
+                return mDetectionResult;
+        }
+
     }
 
     private long getElapsedTime(){
@@ -868,7 +901,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
     private void analyzeLaneByShape(CvCameraViewFrame inputFrame) {
         //extract ROI
         mGrayLane = inputFrame.gray().submat(laneRoi);
-
         //perform adaptive threshold
         Imgproc.adaptiveThreshold(
                 mGrayLane,
@@ -878,10 +910,17 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 Imgproc.THRESH_BINARY,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_THRESHOLD_BLOCK_SIZE,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_THRESHOLD_C);
-
+        if(spinnerValue.equals("adaptive threshold")){
+            mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+            return;
+        }
         //perform erode
         Imgproc.erode(mGrayLane, mGrayLane, genericErodeElement);
-
+        Imgproc.dilate(mGrayLane, mGrayLane, genericDilateElement);
+        if(spinnerValue.equals("erode")){
+            mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+            return;
+        }
         //find contours
         double laneMean = Core.mean(inputFrame.gray()).val[0];
         Imgproc.Canny(
@@ -889,9 +928,13 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 mGrayLane,
                 laneMean * ConfigConstants.LANE_DETECTION_BY_SHAPE_CANNY_THRESHOLD_1,
                 laneMean * ConfigConstants.LANE_DETECTION_BY_SHAPE_CANNY_THRESHOLD_2);
-        mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
-
+        long initTime = System.currentTimeMillis();
+        if(spinnerValue.equals("canny contours")){
+            mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
+            return;
+        }
         //find lines based on hough algorithm
+        mGrayLane.rowRange(1, screenHeight / 2 - 1).copyTo(mLaneThreshold.submat(screenHeight / 2 + 1, screenHeight - 1, 0, screenWidth));
         Imgproc.HoughLinesP(
                 mLaneThreshold,
                 laneHoughLines,
@@ -900,7 +943,7 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_THRESHOLD,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_MIN_LINE_SIZE,
                 ConfigConstants.LANE_DETECTION_BY_SHAPE_HOUGH_LINE_P_LINE_GAP);
-
+        Log.i(TAG, "TIMECHECK:" + (System.currentTimeMillis() - initTime));
         Set<PairOfPoints> leftLines = new TreeSet<>();
         Set<PairOfPoints> rightLines = new TreeSet<>();
         Set<Line> lines= new HashSet<>();
@@ -930,8 +973,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
                 }
                 //draw all lines to screen
                 // Imgproc.line(mDetectionResult, start, end, ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_THICK);
-
-
                 lines.add(new Line(new PairOfPoints(start, end),(start.y - end.y)/(start.x-end.x)));
 
 //                if (x1 > screenWidth/2){
@@ -980,7 +1021,6 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
             aggLines.add(new PairOfPoints(new Point(avgPtLowX, avgPtLowY), new Point(avgPtHighX, avgPtHighY)));
         }
 
-
         for (PairOfPoints aggLine : aggLines) {
             if (aggLine.getPtHigh().x > screenWidth/2){
                 rightLines.add(aggLine);
@@ -990,14 +1030,12 @@ public class DetectionActivity extends Activity implements CvCameraViewListener2
             //draw agg lines
             Imgproc.line(mDetectionResult, aggLine.getPtLow(), aggLine.getPtHigh(), ConfigConstants.BLUE_COLOR, ConfigConstants.THICKNESS_THICK);
         }
-
         //filter only the lane lines
         laneHoughLines.empty();
         Point intersectionPoint;
         Point centerPoint = new Point(0,0);
         PairOfPoints roadRightLane = new PairOfPoints(new Point(screenWidth, screenHeight), new Point(screenWidth,0));
         PairOfPoints roadLeftLane = new PairOfPoints(new Point(0, screenHeight), new Point(0,0));
-
         //compare all right lines with left lines to find intersection points
         if(rightLines.size() > 0 || leftLines.size() > 0){
             for (PairOfPoints rightLine : rightLines) {
